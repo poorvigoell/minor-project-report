@@ -168,33 +168,159 @@ By restricting the threshold search strictly to the validation split, the induct
 % ------------------------------------------------------------------------------
 % SECTION 4.3: REAL-DATASET ADAPTATIONS
 % ------------------------------------------------------------------------------
-\section[Real-Dataset Adaptations]{Real-Dataset Adaptations and Computational Optimizations}
+% \section[Real-Dataset Adaptations]{Real-Dataset Adaptations and Computational Optimizations}
+% \label{sec:adaptations}
+% \label{sec:dataset_adaptations}
+
+% Deploying graph neural models alongside iterative stigmergic updates on dense real-world networks (e.g., YelpChi with $3.85 \times 10^6$ edges and Amazon with $4.40 \times 10^6$ edges) introduces critical computational bottlenecks. In this section, we detail three software optimizations engineered into the ACO-GNN ingestion pipeline.
+
+% \subsection{Node-Level Memory Compression via Geometric Trail Derivation}
+% Traditional ant colony algorithms allocate an independent scalar parameter for every directed edge $e_{ij} \in \mathcal{E}$. On large multi-relational graphs, storing persistent float32 edge matrices across multiple relation channels requires tens of gigabytes of RAM. As formalized in Section~\ref{sec:aco_engine}, our system implements node-level potential compression:
+% \begin{equation}
+%     \tau_{ij}^{(r)} = \sqrt{s_i \cdot s_j + 10^{-8}}
+% \end{equation}
+% This formulation scales memory consumption strictly as $\mathcal{O}(|\mathcal{V}|)$ rather than $\mathcal{O}(|\mathcal{E}|)$. On YelpChi ($N=45,954$, $|\mathcal{E}|=3,846,979$), this achieves an $83.7\times$ memory reduction from $15.38\,\text{MB}$ of raw edge floats down to $183.8\,\text{KB}$ of entity potentials, allowing full graph execution on memory-constrained hardware.
+
+% \subsection{Sparse Relational Aggregation on Commodity Multi-Core CPUs}
+% Standard deep graph libraries (e.g., PyTorch Geometric, DGL) rely on specialized CUDA kernels that frequently encounter out-of-memory (OOM) errors during full-graph attention over millions of edges on desktop GPUs. We engineered a pure-PyTorch sparse engine that operates natively on CPU memory via vectorized \texttt{scatter\_add\_} primitives:
+% \begin{enumerate}
+%     \item \textbf{Decoupled Linear Projection:} Feature transformations $\mathbf{z}_{i, r} = \mathbf{W}_r \mathbf{h}_i$ are executed once per node ($N \times d$) prior to edge traversal, avoiding redundant dimension expansions across $|\mathcal{E}|$ edges.
+%     \item \textbf{In-Place Scatter Reduction:} Neighborhood attention logits and messages are accumulated into destination accumulators using in-place scatter additions without instantiating dense $|\mathcal{V}| \times |\mathcal{V}|$ adjacency tensors.
+%     \item \textbf{Zero-Gradient Pheromone Step:} Pheromone evaporation and risk reinforcement are wrapped in \texttt{torch.no\_grad()} contexts, eliminating computational graph retention across successive training iterations.
+% \end{enumerate}
+
+% \subsection{Standardized Inductive and Progressive Splitting Protocols}
+% To evaluate model performance across both static and dynamic settings without data leakage, our data pipeline implements two distinct partitioning protocols:
+% \begin{itemize}
+%     \item \textbf{Static Benchmark Split (60/20/20):} For fair benchmarking against published literature (including CARE-GNN, PC-GNN, and BWGNN), the graph is partitioned into 60\% training, 20\% validation, and 20\% test nodes via stratified sampling on YelpChi and Amazon.
+%     \item \textbf{Progressive Dynamic Streaming Split (32/8/30/30):} To simulate continuous real-time transaction arrival without structural lookahead, the dynamic streaming harness partitions the graph into a base set (32\% train, 8\% validation, 30\% static test) and a streaming evaluation buffer (30\% dynamic simulation) dispatched across $K=5$ progressive batches.
+% \end{itemize}
+
+\section[Real-Dataset Adaptations]{Real-Dataset Adaptations and Optimizations [Assigned to: Sanya]}
 \label{sec:adaptations}
 \label{sec:dataset_adaptations}
 
-Deploying graph neural models alongside iterative stigmergic updates on dense real-world networks (e.g., YelpChi with $3.85 \times 10^6$ edges and Amazon with $4.40 \times 10^6$ edges) introduces critical computational bottlenecks. In this section, we detail three software optimizations engineered into the ACO-GNN ingestion pipeline.
+Deploying our ACO-GNN model on real-world benchmark graphs (YelpChi with 45,954 nodes and 3.85M edges; Amazon with 11,944 nodes and 4.40M edges) introduced concrete performance hurdles that did not appear on toy synthetic graphs. Running multi-million-edge graphs on standard CPU workstations easily causes out-of-memory errors and slow training loops. To make the pipeline practical without requiring high-end GPU servers, we developed several targeted engineering optimizations in memory management, attention computation, and data preprocessing.
 
-\subsection{Node-Level Memory Compression via Geometric Trail Derivation}
-Traditional ant colony algorithms allocate an independent scalar parameter for every directed edge $e_{ij} \in \mathcal{E}$. On large multi-relational graphs, storing persistent float32 edge matrices across multiple relation channels requires tens of gigabytes of RAM. As formalized in Section~\ref{sec:aco_engine}, our system implements node-level potential compression:
-\begin{equation}
-    \tau_{ij}^{(r)} = \sqrt{s_i \cdot s_j + 10^{-8}}
-\end{equation}
-This formulation scales memory consumption strictly as $\mathcal{O}(|\mathcal{V}|)$ rather than $\mathcal{O}(|\mathcal{E}|)$. On YelpChi ($N=45,954$, $|\mathcal{E}|=3,846,979$), this achieves an $83.7\times$ memory reduction from $15.38\,\text{MB}$ of raw edge floats down to $183.8\,\text{KB}$ of entity potentials, allowing full graph execution on memory-constrained hardware.
+\subsection{Node-Level Pheromone via Geometric Mean Approximation}
+\label{subsec:node_pheromone}
 
-\subsection{Sparse Relational Aggregation on Commodity Multi-Core CPUs}
-Standard deep graph libraries (e.g., PyTorch Geometric, DGL) rely on specialized CUDA kernels that frequently encounter out-of-memory (OOM) errors during full-graph attention over millions of edges on desktop GPUs. We engineered a pure-PyTorch sparse engine that operates natively on CPU memory via vectorized \texttt{scatter\_add\_} primitives:
+In the conceptual formulation of Ant Colony Optimization, every edge $(i,j)$ carries its own independent pheromone value $\tau_{ij}$. While storing 3.85 million floating-point values for YelpChi is technically possible within RAM, doing so during training caused two practical headaches:
 \begin{enumerate}
-    \item \textbf{Decoupled Linear Projection:} Feature transformations $\mathbf{z}_{i, r} = \mathbf{W}_r \mathbf{h}_i$ are executed once per node ($N \times d$) prior to edge traversal, avoiding redundant dimension expansions across $|\mathcal{E}|$ edges.
-    \item \textbf{In-Place Scatter Reduction:} Neighborhood attention logits and messages are accumulated into destination accumulators using in-place scatter additions without instantiating dense $|\mathcal{V}| \times |\mathcal{V}|$ adjacency tensors.
-    \item \textbf{Zero-Gradient Pheromone Step:} Pheromone evaporation and risk reinforcement are wrapped in \texttt{torch.no\_grad()} contexts, eliminating computational graph retention across successive training iterations.
+    \item \textbf{Subsampling bias:} To keep CPU memory manageable, training runs sample a maximum of 150,000 edges per relation each epoch. If pheromone updates only apply to sampled edges, unsampled edges remain stuck at default initial values, creating an artificial bias toward dense, frequently sampled neighborhoods.
+    \item \textbf{Checkpointing overhead:} During early stopping, saving and restoring full edge-pheromone arrays whenever validation metrics improve added heavy disk I/O latency to every training epoch.
 \end{enumerate}
 
-\subsection{Standardized Inductive and Progressive Splitting Protocols}
-To evaluate model performance across both static and dynamic settings without data leakage, our data pipeline implements two distinct partitioning protocols:
+To circumvent both problems, our \texttt{VectorizedACOEngine} maintains pheromone state at the node level instead of allocating edge arrays:
+\begin{equation}
+    \mathbf{s} \in \mathbb{R}^{N}, \quad s_i = \text{stigmergic risk score for node } v_i
+\end{equation}
+During message passing, the effective pheromone weight for any directed edge $(i, j)$ is computed on the fly through the geometric mean of the two endpoint potentials:
+\begin{equation}
+    \tau_{ij} = \sqrt{s_i \cdot s_j + 10^{-8}}
+    \label{eq:node_pheromone_derivation}
+\end{equation}
+
+This design reduces memory complexity from $\mathcal{O}(|\mathcal{E}|)$ to $\mathcal{O}(N)$, shrinking YelpChi's pheromone state footprint from 3.85 million values to just 45,954 values---an $83.7\times$ memory reduction. Furthermore, because node potentials update from aggregated neighborhood predictions regardless of which individual edges were sampled in a given batch, edge weights remain consistent across training epochs without freezing unsampled connections.
+
+\subsection{Memory-Efficient Attention Computation}
+\label{subsec:chunked_attention}
+
+The \texttt{PheromoneGuidedConv} layer combines learned attention with pheromone weights via a destination-grouped softmax. Materializing a dense $N \times N$ matrix for YelpChi would require gigabytes of temporary memory, instantly crashing standard Python processes. We addressed this with three implementation choices:
+
+\begin{enumerate}
+    \item \textbf{Pre-computing node projections:} We compute source and destination linear projections ($\mathbf{a}_{\text{src}}^T \mathbf{W} \mathbf{h}_i$ and $\mathbf{a}_{\text{dst}}^T \mathbf{W} \mathbf{h}_j$) once per node as $N$-dimensional vectors, and only then gather them along active edges. This avoids allocating large intermediate feature tensors across millions of edges.
+    \item \textbf{Destination-grouped scatter softmax:} Instead of running a global softmax across the entire edge index (which would incorrectly normalize attention across different destination nodes), we execute a numerically stable three-stage scatter operation:
+    \begin{align}
+        \text{max}_{j} &\leftarrow \texttt{scatter\_reduce}(\text{dst}, \alpha_{\text{logits}}, \text{`amax'}) \\
+        \alpha_{\text{exp}} &= \exp(\alpha_{\text{logits}} - \text{max}_{j}[\text{dst}]) \\
+        \alpha_{ij} &= \frac{\alpha_{\text{exp}}}{\texttt{scatter\_add}(\text{dst}, \alpha_{\text{exp}}) + 10^{-8}}
+    \end{align}
+    Subtracting the destination maximum prevents exponential overflow in float32 while keeping attention weights strictly normalized within each node's local neighborhood.
+    \item \textbf{Relation-by-relation passes:} Rather than loading all 3.85 million edges at once, message passing loops through each relation type $r \in \{0, 1, 2\}$ sequentially using boolean masks, handling roughly 1.28 million edges per pass. This divides peak RAM consumption by the number of relations.
+\end{enumerate}
+
+\subsection{Feature Preprocessing for Heterogeneous Datasets}
+\label{subsec:feature_preprocessing}
+
+During initial validation experiments, we noticed that raw feature distributions differed substantially between datasets, directly affecting gradient stability (Table~\ref{tab:feature_ablation}).
+
+\begin{table}[htbp]
+\centering
+\small
+\setlength{\tabcolsep}{3.5pt}
+\caption[Feature preprocessing validation ablation]{Feature preprocessing validation ablation (seed 42, YelpChi).}
+\label{tab:feature_ablation}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc}
+\toprule
+\textbf{Preprocessing} & \textbf{Val Acc.} & \textbf{Macro-F1} & \textbf{Fraud-F1} & \textbf{ROC-AUC} \\
+\midrule
+Raw features (baseline)             & 0.8393 & 0.6912 & 0.4775 & 0.7994 \\
+CARE-style row-sum normalization    & 0.8341 & 0.6815 & 0.4611 & 0.7886 \\
+\textbf{Training-node z-score}      & \textbf{0.8485} & \textbf{0.7187} & \textbf{0.5276} & \textbf{0.8501} \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
 \begin{itemize}
-    \item \textbf{Static Benchmark Split (60/20/20):} For fair benchmarking against published literature (including CARE-GNN, PC-GNN, and BWGNN), the graph is partitioned into 60\% training, 20\% validation, and 20\% test nodes via stratified sampling on YelpChi and Amazon.
-    \item \textbf{Progressive Dynamic Streaming Split (32/8/30/30):} To simulate continuous real-time transaction arrival without structural lookahead, the dynamic streaming harness partitions the graph into a base set (32\% train, 8\% validation, 30\% static test) and a streaming evaluation buffer (30\% dynamic simulation) dispatched across $K=5$ progressive batches.
+    \item \textbf{YelpChi:} Applying z-score normalization ($x_i \leftarrow (x_i - \mu_{\text{train}}) / \sigma_{\text{train}}$) based purely on training nodes improved validation Macro-F1 from 0.6912 to 0.7187 (+2.75 points) and Fraud-F1 by 5.01 points over raw features. Computing mean and variance strictly on the training partition prevents information leakage into validation and test sets.
+    \item \textbf{Amazon:} Reviewer feature magnitudes on Amazon vary widely across users. We found that CARE-style row normalization ($x_i \leftarrow x_i / (\sum_j x_{ij} + 0.01)$) was critical. Without it, the model struggled to train, achieving only 0.6797 Macro-F1; with row normalization, it reached 0.9041, bringing performance on par with CARE-GNN (0.9015).
 \end{itemize}
+
+\subsection{Dual Threshold Reporting Protocol}
+\label{subsec:dual_threshold}
+
+Most baseline papers report results using a default decision cutoff of $\theta = 0.5$ (equivalent to an argmax on output logits). However, because fraud detection tasks are heavily imbalanced (14.53\% positive cases on YelpChi, 9.87\% on Amazon), a fixed 0.5 threshold often misrepresents the classifier's practical utility. We therefore report all benchmark results under two complementary settings:
+
+\begin{enumerate}
+    \item \textbf{Default threshold ($\theta = 0.5$):} Retained to allow direct, apples-to-apples comparisons with published baseline numbers.
+    \item \textbf{Validation-tuned threshold ($\theta^*$):} We sweep the Precision-Recall curve on the validation partition to find the threshold that yields the best minority-class F1 score. We then evaluate this exact cutoff on the test set without any test-label tuning.
+\end{enumerate}
+
+Reporting both thresholds gives a fair picture: readers can compare against published scores at $\theta = 0.5$, while also seeing how the model performs when tuned for real-world imbalanced operation.
+
+\subsection{Multi-Seed Benchmark Runner Infrastructure}
+\label{subsec:multiseed_scripts}
+
+To avoid cherry-picked results, all reported evaluations are averaged over five fixed random seeds ($42, 123, 456, 789, 1024$). We wrote two standalone automation scripts:
+
+\begin{itemize}
+    \item \texttt{run\_multiseed\_aco.py}: Automates training, validation checkpointing, and testing across all five seeds on YelpChi and Amazon. The script saves metrics to JSON after each seed so that long runs can be resumed cleanly if interrupted.
+    \item \texttt{run\_tune\_and\_compare.py}: Runs a two-stage evaluation: first tuning $\lambda$ and $\rho$ on validation data using a compact grid, and then running five-seed comparisons between ACO-GNN and CARE-GNN on identical train/validation/test masks.
+\end{itemize}
+
+Across all seeds, we report sample mean and sample standard deviation ($\text{ddof} = 1$):
+\begin{equation}
+    \bar{m} = \frac{1}{5}\sum_{s=1}^{5} m_s, \quad \hat{\sigma} = \sqrt{\frac{1}{4}\sum_{s=1}^{5}(m_s - \bar{m})^2}
+\end{equation}
+
+\subsection{Hyperparameter Tuning Process}
+\label{subsec:hyperparameter_tuning}
+
+The primary hyperparameters specific to the ACO mechanism are the initial blending weight $\lambda_{\text{init}}$ and the evaporation rate $\rho$. We evaluated these on YelpChi validation data using a compact grid search:
+
+\begin{table}[htbp]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption[$\lambda$/$\rho$ grid search results on validation]{Validation-only $\lambda$/$\rho$ grid search (YelpChi, z-score features, balanced CE loss).}
+\label{tab:lambda_rho_grid}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}ccccccc}
+\toprule
+$\lambda_{\text{init}}$ & $\rho$ & \textbf{Val Acc.} & \textbf{Macro-F1} & \textbf{Fraud-F1} & \textbf{ROC-AUC} & \textbf{Selection Score} \\
+\midrule
+\textbf{0.25} & \textbf{0.01} & 0.8523 & \textbf{0.7235} & \textbf{0.5347} & \textbf{0.8503} & \textbf{1.5738} \\
+0.25 & 0.05 & 0.8482 & 0.7214 & 0.5334 & 0.8500 & 1.5714 \\
+0.50 & 0.01 & 0.8534 & 0.7228 & 0.5325 & 0.8497 & 1.5725 \\
+0.50 & 0.05 & 0.8496 & 0.7203 & 0.5302 & 0.8499 & 1.5702 \\
+0.75 & 0.01 & 0.8458 & 0.7182 & 0.5287 & 0.8499 & 1.5681 \\
+0.75 & 0.05 & 0.8485 & 0.7187 & 0.5276 & 0.8501 & 1.5688 \\
+\bottomrule
+\end{tabular*}
+\end{table}
+
+We selected configurations using the combined validation score $S = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$. Setting $\lambda_{\text{init}} = 0.25$ and $\rho = 0.01$ produced the strongest validation response on YelpChi. A lower $\lambda_{\text{init}}$ allows pheromone trails to play a stronger role early in training before learned attention takes over, while a gentle evaporation rate of $\rho = 0.01$ prevents valid trail memory from decaying too quickly across epochs. All parameter choices were finalized strictly on validation splits without touching test data.
+
 
 % ------------------------------------------------------------------------------
 % SECTION 4.4: CARE-GNN BASE PAPER REPRODUCTION
