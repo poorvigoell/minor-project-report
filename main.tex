@@ -1,0 +1,133 @@
+\documentclass[12pt,oneside,a4paper]{book} % Style for A4 format IGDTUW B.Tech Minor Project Report
+
+\input{./AuxFiles/Packages}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Document settings (IGDTUW B.Tech Minor Project Specification)
+\title{Pheromone-Guided Graph Neural Networks for Adaptive Fraud Ring Detection in Dynamic Lending Networks}
+\subCode{B.Tech Minor Project}
+\Department[CSE]{Computer Science and Engineering}
+\academicYear{2024 -- 2026}
+
+%%%%%%%%%%%%%%% Minor Project Flag %%%%%%%%%%%%%%%
+\MinorProject
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Student Details (SANIYA, POORVI, SANYA SAXENA)
+\stuNameA{SANIYA ARORA}
+\stuUSNA{Enrollment No.: 11501182023}
+\stuNameB{POORVI GOEL}
+\stuUSNB{Enrollment No.: 08901182024}
+\stuNameC{SANYA SAXENA}
+\stuUSNC{Enrollment No.: 11801182025}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Guide Related commands
+\guideNameA{[Supervisor / Faculty Guide Name]}
+\guideDesignationA{[Designation]}
+\guideDeptA[ECE-AI]{Computer Science and Engineering}
+\guideOrgA{IGDTUW, Delhi}
+
+%%%%%%%%%%%%%%%%% Esteemed Members %%%%%%%%%%%%%%%%%%
+\HOD{[HoD Name]}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% QR Code URL (optional)
+\QRurl{}
+
+%%%%%%%%%%%%%%%%%% Glossaries & Acronyms %%%%%%%%%%%%%%%%%%
+\newglossary[sym]{symbolList}{sym1}{sym2}{List of Symbols}
+\makeglossaries
+\loadglsentries{./AuxFiles/Glossaries}
+\renewcommand{\glspostdescription}{}
+
+%%%%%%%%%%%%%%%% Bibliography %%%%%%%%%%%%%%%%%%%%%
+\usepackage[style=ieee]{biblatex}
+\addbibresource{./AuxFiles/ProjectBib.bib}
+
+\begin{document}
+	\NoBgThispage	
+	\maketitle
+	
+	\begin{spacing}{1.4}
+		% 1. Certificate (Guide & HoD, Principal removed per CR Nishtha)
+		\input{./CoverPages/Certificate}
+		
+		\newpage
+		% 2. Candidates' Declaration
+		\input{./CoverPages/Declaration}
+		
+		\newpage
+		% 3. Plagiarism Similarity Check Certificate (<15% Turnitin check)
+		\input{./CoverPages/PlagiarismCertificate}
+		
+		\newpage
+		% 4. Acknowledgements
+		\input{./CoverPages/Ack}
+		
+		\newpage
+		\pagenumbering{roman}
+		
+		% 5. Abstract
+		\chapter*{Abstract}
+		\input{./CoverPages/Abstract}
+	\end{spacing}
+	
+	\newpage
+	\pagestyle{fplain}
+	\begin{spacing}{1.4}
+		\tableofcontents	
+	\end{spacing}
+	
+	\newpage
+	\begin{spacing}{1.4}
+		\cleardoublepage
+		\addcontentsline{toc}{chapter}{\listfigurename}
+		\listoffigures	
+	\end{spacing}
+	
+	\newpage
+	\begin{spacing}{1.4}
+		\cleardoublepage
+		\addcontentsline{toc}{chapter}{\listtablename}
+		\listoftables	
+	\end{spacing}
+
+	\newpage
+	\printglossary[type=\acronymtype, title= Abbreviations, toctitle=Abbreviations]
+	\newpage
+	\printglossary[type=symbolList, title= List of Symbols, toctitle=List of Symbols]
+	
+	\mainmatter
+	\pagestyle{mplain}
+	\glsresetall
+	\begin{spacing}{1.4}
+		% Chapter 1 (Assigned to: SANIYA)
+		\input{./Chapter1/chapter1-Intro}
+		
+		% Chapter 2 (Assigned to: SANIYA - 2.1 & 2.3; POORVI - 2.2)
+		\input{./Chapter2/chapter2-Funda}
+		
+		% Chapter 3 (Assigned to: POORVI)
+		\input{./Chapter3/chapter3-design}
+		
+		% Chapter 4 (Assigned to: POORVI & SANYA)
+		\input{./Chapter4/chapter4-implement}
+		
+		% Chapter 5 (Assigned to: SANYA)
+		\input{./Chapter5/chapter5-result}
+		
+		% Chapter 6 (Assigned to: SANIYA & Team)
+		\input{./Chapter6/chapter6-conclution}
+		
+		% Appendix
+		\appendix
+		\input{./Appendix/Apndx}
+		
+		% Bibliography
+		\backmatter
+		\clearpage
+		\addcontentsline{toc}{chapter}{Bibliography}
+		\printbibliography
+	\end{spacing}
+\end{document}
