@@ -1,7 +1,106 @@
-\chapter{Key Implementation Code Listings}
+\chapter{Algorithmic Specifications and Key Code Listings}
+\label{app:algorithms}
 \label{app:code}
 
-This appendix provides key vectorized implementations of the Stigmergic Pheromone Engine and the dual-attention message-passing layer developed in this project.
+This appendix provides the formal algorithmic specifications for the ACO-GNN framework alongside key vectorized PyTorch implementations of the Stigmergic Pheromone Engine and the dual-attention message-passing layer.
+
+\section{Formal Algorithmic Specifications}
+
+\begin{algorithm}[H]
+\caption{Stigmergic Pheromone Update Cycle}
+\label{alg:aco_update}
+\begin{algorithmic}[1]
+\Require Adjacency edges $\mathcal{E}$, observed training labels $\mathbf{Y}_{\text{train}}$, posterior fraud probabilities $\mathbf{p} \in [0, 1]^N$, current node potentials $\mathbf{s} \in \mathbb{R}^N$, evaporation rate $\rho$, bounds $[\tau_{\min}, \tau_{\max}]$, deposit rate $\gamma_u$.
+\Ensure Updated node potentials $\mathbf{s}'$ and normalized edge priors $\hat{\boldsymbol{\tau}}$.
+\State \textbf{// Step 1: Synthesize Observed Risk Vector}
+\State $\tilde{\mathbf{p}} \leftarrow \mathbf{p}.\text{clone}()$
+\For{$v_i \in \mathcal{V}_{\text{train}}$}
+    \State $\tilde{p}_i \leftarrow y_i$ \Comment{Incorporate known ground-truth labels}
+\EndFor
+\State \textbf{// Step 2: Edge-Level Risk Co-occurrence}
+\For{$(i, j) \in \mathcal{E}$}
+    \State $R_{ij} \leftarrow \sqrt{\tilde{p}_i \cdot \tilde{p}_j + 10^{-8}}$ \Comment{Joint anomaly indicator}
+\EndFor
+\State \textbf{// Step 3: Neighborhood Consensus Aggregation}
+\For{$v_i \in \mathcal{V}$}
+    \State $\bar{R}_i \leftarrow \frac{1}{\max(1, |\mathcal{N}(i)|)} \sum_{j \in \mathcal{N}(i)} R_{ij}$
+    \State $T_i \leftarrow \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot \left[0.5 \tilde{p}_i + 0.5 \bar{R}_i\right]$
+    \State \textbf{// Step 4: EMA Evaporation and Reinforcement}
+    \State $s_i' \leftarrow (1 - \gamma_u) \cdot s_i + \gamma_u \cdot T_i$
+    \State $s_i' \leftarrow \max\left(\tau_{\min}, \, \min\left(\tau_{\max}, \, s_i'\right)\right)$
+\EndFor
+\State \textbf{// Step 5: Softmax Normalized Edge Priors}
+\For{$(i, j) \in \mathcal{E}$}
+    \State $\tau_{ij} \leftarrow \sqrt{s_i' \cdot s_j' + 10^{-8}}$
+    \State $\hat{\tau}_{ij} \leftarrow \frac{\exp(\tau_{ij} / T_s)}{\sum_{k \in \mathcal{N}(j)} \exp(\tau_{kj} / T_s)}$
+\EndFor
+\State \Return $\mathbf{s}'$, $\hat{\boldsymbol{\tau}}$
+\end{algorithmic}
+\end{algorithm}
+
+\vspace{0.3cm}
+
+\begin{algorithm}[H]
+\caption{ACO-GNN End-to-End Training and Optimization Loop}
+\label{alg:training_pipeline}
+\begin{algorithmic}[1]
+\Require Graph $\mathcal{G} = (\mathcal{V}, \mathcal{E}, \mathcal{R}, \mathbf{X}, \mathbf{Y})$, maximum epochs $E_{\max}$, learning rate $\eta$, patience $P$.
+\Ensure Optimal model parameters $\Theta^*$ and calibrated threshold $\theta^*$.
+\State Initialize network parameters $\Theta = \{\mathbf{W}_{\text{root}}, \mathbf{W}_r, \mathbf{a}_{\text{src}}, \mathbf{a}_{\text{dst}}, \psi, \Theta_{\text{MLP}}\}$
+\State Initialize ACO engine: $\mathbf{s} \leftarrow \mathbf{1}^N$, $\hat{\boldsymbol{\tau}} \leftarrow \text{Uniform priors}$
+\State Best validation score $S^* \leftarrow 0$, early stopping counter $c \leftarrow 0$
+\For{$\text{epoch} = 1 \text{ to } E_{\max}$}
+    \State \textbf{// Forward Message-Passing Pass}
+    \State $\lambda \leftarrow \sigma(\psi)$
+    \State Compute layer outputs $\mathbf{h}^{(l+1)}$ using Equation \ref{eq:dual_attention_blend} and \ref{eq:final_layer_norm}
+    \State Compute class logits: $\hat{\mathbf{Z}} = \text{MLP}(\mathbf{h}^{(L)})$
+    \State $\mathbf{p} \leftarrow \text{Softmax}(\hat{\mathbf{Z}})[:, 1]$ \Comment{Minority fraud class probabilities}
+    \State \textbf{// Loss Computation}
+    \State $\mathcal{L} \leftarrow \mathcal{L}_{\text{FL}}\left(\mathbf{p}[\mathcal{V}_{\text{train}}], \, \mathbf{Y}[\mathcal{V}_{\text{train}}]\right)$
+    \State \textbf{// Backpropagation}
+    \State $\Theta \leftarrow \Theta - \eta \cdot \nabla_\Theta \mathcal{L}$
+    \State \textbf{// Evolutionary Stigmergic Feedback}
+    \State $\mathbf{s}, \hat{\boldsymbol{\tau}} \leftarrow \text{UpdatePheromones}(\mathcal{E}, \mathbf{Y}[\mathcal{V}_{\text{train}}], \mathbf{p}, \mathbf{s})$ \Comment{Algorithm \ref{alg:aco_update}}
+    \State \textbf{// Validation Evaluation and Calibration}
+    \State $\theta_{\text{val}} \leftarrow \text{CalibrateThreshold}(\mathbf{p}[\mathcal{V}_{\text{val}}], \, \mathbf{Y}[\mathcal{V}_{\text{val}}])$ \Comment{Algorithm \ref{alg:threshold_calibration}}
+    \State $S_{\text{val}} \leftarrow \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$ \Comment{Composite early stopping score}
+    \If{$S_{\text{val}} > S^*$}
+        \State $S^* \leftarrow S_{\text{val}}$, $\Theta^* \leftarrow \Theta$, $\theta^* \leftarrow \theta_{\text{val}}$, $c \leftarrow 0$
+    \Else
+        \State $c \leftarrow c + 1$
+        \If{$c \ge P$}
+            \State \textbf{break} \Comment{Early stopping triggered}
+        \EndIf
+    \EndIf
+\EndFor
+\State \Return $\Theta^*$, $\theta^*$
+\end{algorithmic}
+\end{algorithm}
+
+\vspace{0.3cm}
+
+\begin{algorithm}[H]
+\caption{Validation-Calibrated Optimal Decision Threshold Search}
+\label{alg:threshold_calibration}
+\begin{algorithmic}[1]
+\Require Predicted continuous probabilities $\mathbf{p}_{\text{val}} \in [0, 1]^{N_{\text{val}}}$, ground-truth binary labels $\mathbf{Y}_{\text{val}} \in \{0, 1\}^{N_{\text{val}}}$.
+\Ensure Optimal decision threshold $\theta^*$.
+\State Candidate set $\Theta_{\text{cand}} \leftarrow \{0.05, 0.06, \dots, 0.95\}$
+\State Best F1 score $F_1^* \leftarrow 0$, optimal threshold $\theta^* \leftarrow 0.5$
+\For{$\theta \in \Theta_{\text{cand}}$}
+    \State $\hat{\mathbf{y}}_\theta \leftarrow \mathbb{I}(\mathbf{p}_{\text{val}} \ge \theta)$
+    \State $\text{TP} \leftarrow \sum \mathbb{I}( \hat{\mathbf{y}}_\theta = 1 \land \mathbf{Y}_{\text{val}} = 1 )$
+    \State $\text{FP} \leftarrow \sum \mathbb{I}( \hat{\mathbf{y}}_\theta = 1 \land \mathbf{Y}_{\text{val}} = 0 )$
+    \State $\text{FN} \leftarrow \sum \mathbb{I}( \hat{\mathbf{y}}_\theta = 0 \land \mathbf{Y}_{\text{val}} = 1 )$
+    \State $\text{Precision} \leftarrow \frac{\text{TP}}{\text{TP} + \text{FP} + 10^{-8}}$, $\quad \text{Recall} \leftarrow \frac{\text{TP}}{\text{TP} + \text{FN} + 10^{-8}}$
+    \State $F_1 \leftarrow \frac{2 \cdot \text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall} + 10^{-8}}$
+    \If{$F_1 > F_1^*$}
+        \State $F_1^* \leftarrow F_1, \quad \theta^* \leftarrow \theta$
+    \EndIf
+\EndFor
+\State \Return $\theta^*$
+\end{algorithmic}
+\end{algorithm}
 
 \section{Pheromone-Guided Message-Passing Convolution Layer}
 \begin{footnotesize}

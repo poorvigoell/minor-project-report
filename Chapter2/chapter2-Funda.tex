@@ -72,6 +72,102 @@ To prevent premature stagnation into suboptimal configurations and facilitate ad
 \end{equation}
 where $\Delta \tau_{ij}^{(k)}$ represents the incremental deposit contributed by ant $k$, conventionally proportional to the global quality score $Q / L_k$ of its discovered solution path. In MMAS, bounds $[\tau_{\min}, \tau_{\max}]$ are strictly enforced on all edge trails, eliminating both pheromone starvation (total avoidance of viable edges) and premature stagnation (monopolization of the search space by early trajectories).
 
+\begin{figure}[!htbp]
+\centering
+\resizebox{0.92\textwidth}{!}{%
+\begin{tikzpicture}[
+    font=\small\sffamily,
+    fraud/.style={circle, draw=red!80, fill=red!15, very thick, minimum size=1.05cm, align=center, font=\bfseries\small},
+    benign/.style={circle, draw=blue!75, fill=blue!12, very thick, minimum size=1.05cm, align=center, font=\bfseries\small},
+    rfraud/.style={circle, draw=red!90, fill=red!25, very thick, minimum size=1.05cm, align=center, font=\bfseries\small},
+    rbenign/.style={circle, draw=blue!80, fill=blue!10, very thick, minimum size=1.05cm, align=center, font=\bfseries\small},
+    arr_norm/.style={draw=gray!70, -{Latex[length=2.2mm]}, thick},
+    arr_camo/.style={draw=orange!80!black, -{Latex[length=2.2mm]}, dashed, thick},
+    arr_strong/.style={draw=red!85!black, -{Latex[length=2.8mm]}, line width=2.4pt},
+    arr_faded/.style={draw=gray!35, -{Latex[length=1.8mm]}, loosely dashed, line width=0.7pt},
+    box_panel/.style={draw=gray!40, rounded corners=8pt, fill=gray!2, inner sep=10pt}
+]
+
+%% ==================== LEFT PANEL: INITIAL STATE (t=0) ====================
+\node[fraud] (L_F1) at (0.5, 2.2) {$F_1$};
+\node[fraud] (L_F2) at (2.7, 2.2) {$F_2$};
+\node[fraud] (L_F3) at (2.7, 0) {$F_3$};
+\node[fraud] (L_F4) at (0.5, 0) {$F_4$};
+
+\node[benign] (L_B1) at (-1.5, 1.1) {$B_1$};
+\node[benign] (L_B2) at (4.5, 1.1) {$B_2$};
+
+% Fraud ring edges (initial uniform)
+\draw[arr_norm] (L_F1) -- node[above, font=\scriptsize]{$\tau_0{=}1.0$} (L_F2);
+\draw[arr_norm] (L_F2) -- node[right, font=\scriptsize]{$\tau_0{=}1.0$} (L_F3);
+\draw[arr_norm] (L_F3) -- node[below, font=\scriptsize]{$\tau_0{=}1.0$} (L_F4);
+\draw[arr_norm] (L_F4) -- node[left, font=\scriptsize]{$\tau_0{=}1.0$} (L_F1);
+
+% Camouflage edges
+\draw[arr_camo] (L_F1) -- node[above left, font=\scriptsize, text=orange!80!black]{Camo} (L_B1);
+\draw[arr_camo] (L_F4) -- node[below left, font=\scriptsize, text=orange!80!black]{Camo} (L_B1);
+\draw[arr_camo] (L_F2) -- node[above right, font=\scriptsize, text=orange!80!black]{Camo} (L_B2);
+\draw[arr_camo] (L_F3) -- node[below right, font=\scriptsize, text=orange!80!black]{Camo} (L_B2);
+
+% Label for left panel
+\node[below=0.7cm of L_F4, xshift=1.1cm, align=center, font=\bfseries\small] (lbl_left) 
+    {(a) Initial Transaction Topology ($t=0$)\\[2pt]
+     \normalfont\scriptsize Camouflage edges disguise collusive ring;\\
+     uniform initial priors $\tau_{ij} = \tau_0 = 1.0$};
+
+\begin{scope}[on background layer]
+    \node[box_panel, fit=(L_B1)(L_B2)(L_F1)(L_F3)(lbl_left)] (panel_left) {};
+\end{scope}
+
+%% ==================== CENTER TRANSITION ARROW ====================
+\draw[-{Latex[length=4mm, width=3mm]}, line width=3pt, draw=teal!80] 
+    (5.4, 1.1) -- (7.6, 1.1)
+    node[midway, above=3pt, align=center, font=\scriptsize\bfseries, text=teal!90!black] 
+    {Iterative Stigmergy\\[1pt]
+     $\tau \leftarrow (1{-}\rho)\tau + \Delta\tau$};
+
+\node[align=center, font=\tiny, text=gray!70, below=3pt] at (6.5, 0.8) 
+    {Reinforce risk\\Evaporate camo};
+
+%% ==================== RIGHT PANEL: CONVERGED STATE (t=T) ====================
+\node[rfraud] (R_F1) at (10.2, 2.2) {$F_1$};
+\node[rfraud] (R_F2) at (12.4, 2.2) {$F_2$};
+\node[rfraud] (R_F3) at (12.4, 0) {$F_3$};
+\node[rfraud] (R_F4) at (10.2, 0) {$F_4$};
+
+\node[rbenign] (R_B1) at (8.2, 1.1) {$B_1$};
+\node[rbenign] (R_B2) at (14.2, 1.1) {$B_2$};
+
+% Fraud ring edges (strongly reinforced)
+\draw[arr_strong] (R_F1) -- node[above, font=\scriptsize\bfseries, text=red!80!black]{$\tau \to \tau_{\max}$} (R_F2);
+\draw[arr_strong] (R_F2) -- node[right, font=\scriptsize\bfseries, text=red!80!black]{$\tau \to \tau_{\max}$} (R_F3);
+\draw[arr_strong] (R_F3) -- node[below, font=\scriptsize\bfseries, text=red!80!black]{$\tau \to \tau_{\max}$} (R_F4);
+\draw[arr_strong] (R_F4) -- node[left, font=\scriptsize\bfseries, text=red!80!black]{$\tau \to \tau_{\max}$} (R_F1);
+
+% Camouflage edges (evaporated)
+\draw[arr_faded] (R_F1) -- node[above left, font=\tiny, text=gray!60]{$\tau \to \tau_{\min}$} (R_B1);
+\draw[arr_faded] (R_F4) -- node[below left, font=\tiny, text=gray!60]{$\tau \to \tau_{\min}$} (R_B1);
+\draw[arr_faded] (R_F2) -- node[above right, font=\tiny, text=gray!60]{$\tau \to \tau_{\min}$} (R_B2);
+\draw[arr_faded] (R_F3) -- node[below right, font=\tiny, text=gray!60]{$\tau \to \tau_{\min}$} (R_B2);
+
+% Label for right panel
+\node[below=0.7cm of R_F4, xshift=1.1cm, align=center, font=\bfseries\small] (lbl_right) 
+    {(b) Converged Stigmergic Topology ($t=T$)\\[2pt]
+     \normalfont\scriptsize Multi-hop fraud ring reinforced ($\tau_{ij} \uparrow$);\\
+     camouflage pathways dissolved ($(1{-}\rho)\tau \to \tau_{\min}$)};
+
+\begin{scope}[on background layer]
+    \node[box_panel, fit=(R_B1)(R_B2)(R_F1)(R_F3)(lbl_right)] (panel_right) {};
+\end{scope}
+
+\end{tikzpicture}%
+}
+\caption[Conceptual Stigmergic Disentanglement of Collusive Fraud Rings]{Conceptual mechanism of biological stigmergy and pheromone evaporation under deceptive camouflage. (a) In the raw transaction graph, collusive fraudsters ($F_1$--$F_4$) disguise their connectivity by injecting camouflage edges to benign accounts ($B_1, B_2$). (b) Over iterative training epochs, correlated fraud predictions trigger pheromone reinforcement along ring edges ($\tau \to \tau_{\max}$), whereas non-reinforced camouflage pathways continuously evaporate ($(1-\rho)\tau \to \tau_{\min}$), isolating the collusive syndicate without heuristic edge pruning.}
+\label{fig:stigmergy_camouflage_concept}
+\end{figure}
+
+Figure~\ref{fig:stigmergy_camouflage_concept} illustrates how this continuous reinforcement and evaporation mechanism is adapted to counter adversarial camouflage in financial transaction networks.
+
 \subsection{Neural Combinatorial Optimization Hybrids}
 Over the past five years, research into integrating deep representation learning with swarm intelligence has produced modern neuro-algorithmic frameworks. Foremost among these are:
 \begin{enumerate}

@@ -20,43 +20,44 @@ The engineering architecture is guided by three foundational software design pri
 
 \begin{enumerate}
     \item \textbf{Decoupled Neural-Stigmergic Execution Hierarchy:}
-    In standard deep learning pipelines, maintaining historical state across training epochs within the autograd computational graph incurs prohibitive memory overhead. In our design, the \texttt{VectorizedACOEngine} (\path{src/aco/matrix_ant.py}) and \texttt{DynamicPheromoneEngine} (\path{src/simulation/dynamic_engine.py}) operate strictly outside the PyTorch computational graph using explicit \texttt{torch.no_grad()} contexts. This guarantees that persistent edge pheromone intensities ($\tau_{ij} \in \mathbb{R}^{|\mathcal{E}|}$) and node potentials ($\mathbf{s} \in \mathbb{R}^N$) do not accumulate computational graph history across epochs, maintaining a constant $\mathcal{O}(|\mathcal{E}|)$ memory footprint on standard CPU and GPU hardware.
+    In standard deep learning pipelines, maintaining historical state across training epochs within the autograd computational graph incurs prohibitive memory overhead. In our design, the \texttt{VectorizedACOEngine} (\path{src/aco/matrix_ant.py}) and \texttt{DynamicPheromoneEngine} (\path{src/simulation/dynamic_engine.py}) operate strictly outside the PyTorch computational graph using explicit \texttt{torch.no\_grad()} contexts. This guarantees that persistent edge pheromone intensities ($\tau_{ij} \in \mathbb{R}^{|\mathcal{E}|}$) and node potentials ($\mathbf{s} \in \mathbb{R}^N$) do not accumulate computational graph history across epochs, maintaining a constant $\mathcal{O}(|\mathcal{E}|)$ memory footprint on standard CPU and GPU hardware.
     
     \item \textbf{Unified Multi-Relational Data Pipeline:}
-    Real-world financial graphs are inherently heterogeneous, characterized by multiple interaction types (e.g., user-to-user reviews, shared credit cards, emergency contact references). The \texttt{dataset\_loader.py} module standardizes heterogeneous graph ingestion across YelpChi, Amazon, and DGraphFin into unified sparse tensor representations. It strictly enforces inductive graph partitioning (60\% train, 20\% validation, 20\% test) based on temporal timestamps or stratification, preventing feature and target leakage across evaluation splits. For controlled stress-testing, \texttt{synthetic_generator.py} injects configurable multi-hop fraud rings (spanning 3 to 5 hops) alongside parameterizable adversarial camouflage connections.
+    Real-world financial graphs are inherently heterogeneous, characterized by multiple interaction types (e.g., user-to-user reviews, shared credit cards, emergency contact references). The \path{dataset_loader.py} module standardizes heterogeneous graph ingestion across YelpChi, Amazon, and DGraphFin into unified sparse tensor representations. It strictly enforces inductive graph partitioning (60\% train, 20\% validation, 20\% test) based on temporal timestamps or stratification, preventing feature and target leakage across evaluation splits. For controlled stress-testing, \path{synthetic_generator.py} injects configurable multi-hop fraud rings (spanning 3 to 5 hops) alongside parameterizable adversarial camouflage connections.
 
     \item \textbf{Modular Baseline and Dynamic Simulation Suite:}
-    To ensure rigorous experimental comparison, all baseline architectures—including traditional tabular gradient boosters (XGBoost, LightGBM in \path{src/models/tree_baselines.py}), foundational GNNs (GCN, GAT, GraphSAGE in \path{src/models/baselines.py}), and the proposed ACO-GNN (\path{src/models/aco_gnn.py})—implement identical forward signatures and loss functions. The temporal simulation harness (\path{src/simulation/}) generates incremental graph snapshots to benchmark continuous adaptation under dynamic transaction streams.
+    To ensure rigorous experimental comparison, all baseline architectures---including traditional tabular gradient boosters (XGBoost, LightGBM in \path{src/models/tree_baselines.py}), foundational GNNs (GCN, GAT, GraphSAGE in \path{src/models/baselines.py}), and the proposed ACO-GNN (\path{src/models/aco_gnn.py})---implement identical forward signatures and loss functions. The temporal simulation harness (\path{src/simulation/}) generates incremental graph snapshots to benchmark continuous adaptation under dynamic transaction streams.
 \end{enumerate}
 
-\begin{table}[htbp]
+\begin{table}[!htbp]
 \centering
 \begin{spacing}{1.0}
-\footnotesize
-\setlength{\tabcolsep}{3.5pt}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.02}
 \caption[System Directory Structure and Module Descriptions]{System Directory Structure and Module-Wise Functional Description.}
 \label{tab:repo_modules}
-\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash\ttfamily\scriptsize}p{2.8cm} >{\raggedright\arraybackslash\footnotesize}X@{}}
+\begin{tabularx}{\textwidth}{@{}l >{\raggedright\arraybackslash\ttfamily}p{3.2cm} >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Subsystem} & \textbf{Source File} & \textbf{Core Responsibilities} \\ \midrule
-\textbf{ACO Engine} & src/aco/\\matrix\_ant.py & Vectorized node potentials $\mathbf{s}$, trail derivation, EMA updates, and normalization. \\
+\textbf{ACO Engine} & src/aco/\allowbreak{}matrix\_\allowbreak{}ant.py & Vectorized node potentials $\mathbf{s}$, trail derivation, EMA updates, and normalization. \\
 \midrule
-\textbf{Neural Models} & src/models/\\aco\_gnn.py & Dual-attention convolution (\texttt{PheromoneGuidedConv}) and multi-head \texttt{ACORingGNN}. \\
- & src/models/\\baselines.py & PyTorch implementations of MLP, GCN, GAT, and GraphSAGE baselines. \\
- & src/models/\\tree\_baselines.py & Graph centrality extraction and XGBoost / LightGBM tabular baselines. \\
+\textbf{Neural Models} & src/models/\allowbreak{}aco\_\allowbreak{}gnn.py & Dual-attention convolution (\texttt{Pheromone\-Guided\-Conv}) and multi-head \texttt{ACORingGNN}. \\
+ & src/models/\allowbreak{}baselines.py & PyTorch implementations of MLP, GCN, GAT, and GraphSAGE baselines. \\
+ & src/models/\allowbreak{}tree\_\allowbreak{}baselines.py & Graph centrality extraction and XGBoost / LightGBM tabular baselines. \\
 \midrule
-\textbf{Data Systems} & src/data/\\dataset\_loader.py & Data loaders for YelpChi, Amazon, and DGraphFin with inductive splitting. \\
- & src/data/\\synthetic\_generator.py & Synthetic graph generator with multi-hop rings (3--5 hops) and camouflage. \\
+\textbf{Data Systems} & src/data/\allowbreak{}dataset\_\allowbreak{}loader.py & Data loaders for YelpChi, Amazon, and DGraphFin with inductive splitting. \\
+ & src/data/\allowbreak{}synthetic\_\allowbreak{}generator.py & Synthetic graph generator with multi-hop rings (3--5 hops) and camouflage. \\
 \midrule
-\textbf{Training Core} & src/training/\\losses.py & Class-imbalanced focal loss ($\mathcal{L}_{\text{FL}}$) and weighted cross-entropy. \\
- & src/training/\\train\_eval.py & Training loop, early stopping on validation score, and threshold tuning. \\
+\textbf{Training Core} & src/training/\allowbreak{}losses.py & Class-imbalanced focal loss ($\mathcal{L}_{\text{FL}}$) and weighted cross-entropy. \\
+ & src/training/\allowbreak{}train\_\allowbreak{}eval.py & Training loop, early stopping on validation score, and threshold tuning. \\
 \midrule
-\textbf{Evaluation} & src/utils/\\metrics.py & Tracks Illicit-F1, Macro-F1, AUC-ROC, PR-AUC, and optimal threshold. \\
- & src/utils/\\plotting.py & Generates t-SNE embeddings, pheromone heatmaps, and camouflage curves. \\
+\textbf{Evaluation} & src/utils/\allowbreak{}metrics.py & Tracks Illicit-F1, Macro-F1, AUC-ROC, PR-AUC, and optimal threshold. \\
+ & src/utils/\allowbreak{}plotting.py & Generates t-SNE embeddings, pheromone heatmaps, and camouflage curves. \\
 \midrule
-\textbf{Simulation} & src/simulation/\\graph\_streamer.py & Temporal batch stream generator simulating dynamic network expansion. \\
- & src/simulation/\\dynamic\_engine.py & \texttt{DynamicPheromoneEngine} for edge-level trails and cold-start handling. \\
- & src/simulation/\\dynamic\_evaluator.py & Online performance and metric tracking across streaming batch arrivals. \\
+\textbf{Simulation} & src/simulation/\allowbreak{}graph\_\allowbreak{}streamer.py & Temporal batch stream generator simulating dynamic network expansion. \\
+ & src/simulation/\allowbreak{}dynamic\_\allowbreak{}engine.py & \texttt{Dynamic\-Pheromone\-Engine} for edge-level trails and cold-start handling. \\
+ & src/simulation/\allowbreak{}dynamic\_\allowbreak{}evaluator.py & Online performance and metric tracking across streaming batch arrivals. \\
 \bottomrule
 \end{tabularx}
 \end{spacing}
@@ -68,127 +69,64 @@ The engineering architecture is guided by three foundational software design pri
 \section[Key Algorithms]{Key Algorithms}
 \label{sec:algorithms}
 
-The operational execution of the ACO-GNN framework is formalized through three foundational algorithms:
+The operational execution of the ACO-GNN architecture is governed by three interconnected algorithmic procedures: the Stigmergic Pheromone Update Cycle, the Dual-Loop Training Procedure, and the Validation-Calibrated Decision Threshold Search. The formal pseudocode specifications for these procedures are documented in Appendix~\ref{app:algorithms}.
+
+\subsection{Stigmergic Pheromone Update Cycle}
+The stigmergic update cycle (formalized in Algorithm~\ref{alg:aco_update}, Appendix~\ref{app:algorithms}) is executed at the completion of each forward pass to iteratively refine the edge-level structural prior without backpropagating through time. The procedure comprises five computational steps:
+
 \begin{enumerate}
-    \item \textbf{Stigmergic Pheromone Update Cycle (Algorithm~\ref{alg:aco_update}):} Governs how node and edge pheromone intensities are updated, evaporated, and normalized across epochs.
-    \item \textbf{Dual-Loop End-to-End Training Loop (Algorithm~\ref{alg:training_pipeline}):} Details the coordination between gradient-based backpropagation and evolutionary stigmergy.
-    \item \textbf{Validation Threshold Calibration Procedure (Algorithm~\ref{alg:threshold_calibration}):} Optimizes the decision threshold on validation data to address severe class imbalance.
+    \item \textbf{Synthesize Observed Risk Vector ($\tilde{\mathbf{p}}$):}
+    Ground-truth binary labels $y_i \in \{0, 1\}$ are assigned to observed training nodes $v_i \in \mathcal{V}_{\text{train}}$, while predicted posterior minority fraud probabilities $p_i = \text{Softmax}(\hat{\mathbf{Z}})_{i, 1}$ are utilized for unobserved validation and test vertices.
+
+    \item \textbf{Edge-Level Risk Co-occurrence Computation ($R_{ij}$):}
+    For every directed edge $(i, j) \in \mathcal{E}$, joint suspicion is evaluated via the geometric mean:
+    \begin{equation}
+        R_{ij} = \sqrt{\tilde{p}_i \cdot \tilde{p}_j + 10^{-8}}
+    \end{equation}
+    The geometric formulation enforces a strict co-occurrence constraint: an edge is recognized as high-risk only if \textit{both} incident nodes exhibit elevated fraud probabilities. If an adversarial fraudster establishes a camouflage connection to a high-credit benign borrower ($p_j \approx 0$), the geometric product collapses toward zero, naturally suppressing deceptive trail reinforcement.
+
+    \item \textbf{Neighborhood Consensus Aggregation ($\bar{R}_i$):}
+    To prevent isolated node fluctuations from corrupting structural trails, each vertex computes the mean risk across its immediate incident neighborhood:
+    \begin{equation}
+        \bar{R}_i = \frac{1}{\max(1, |\mathcal{N}(i)|)} \sum_{j \in \mathcal{N}(i)} R_{ij}
+    \end{equation}
+    The target potential is derived as a balanced convex combination: $T_i = \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot [0.5 \tilde{p}_i + 0.5 \bar{R}_i]$.
+
+    \item \textbf{Exponential Moving Average (EMA) Evaporation and Reinforcement:}
+    Node potentials $\mathbf{s} \in \mathbb{R}^N$ are updated via momentum smoothing with deposit rate $\gamma_u$:
+    \begin{equation}
+        s_i' = (1 - \gamma_u) \cdot s_i + \gamma_u \cdot T_i
+    \end{equation}
+    Potentials are strictly clamped within $[\tau_{\min}, \tau_{\max}]$, guaranteeing numerical stability and preventing both trail explosion and premature stagnation.
+
+    \item \textbf{Relation-Specific Softmax Normalization ($\hat{\boldsymbol{\tau}}$):}
+    Pairwise edge trails are derived as $\tau_{ij} = \sqrt{s_i' \cdot s_j' + 10^{-8}}$ and normalized per incoming neighborhood via temperature-scaled softmax:
+    \begin{equation}
+        \hat{\tau}_{ij} = \frac{\exp(\tau_{ij} / T_s)}{\sum_{k \in \mathcal{N}(j)} \exp(\tau_{kj} / T_s)}
+    \end{equation}
+    producing valid probability priors for the subsequent neural aggregation pass.
 \end{enumerate}
 
-\subsection{Algorithmic Specification of Stigmergic Updates}
-Algorithm~\ref{alg:aco_update} specifies the mathematical steps executed by the ACO engine at the conclusion of each forward pass. The procedure begins by synthesizing an observed risk vector $\tilde{\mathbf{p}}$ that incorporates ground-truth supervision for labeled training vertices while utilizing predicted posterior probabilities for unobserved nodes (Step 1). 
-
-To identify collusive fraud rings without being misled by individual noisy features, Step 2 computes edge-level risk co-occurrence via the geometric mean:
-\begin{equation}
-    R_{ij} = \sqrt{\tilde{p}_i \cdot \tilde{p}_j + \epsilon}
-\end{equation}
-The geometric mean formulation acts as a natural structural filter: an edge receives high risk $R_{ij}$ only when \textit{both} incident vertices exhibit elevated fraud probabilities. If a fraudster connects to an innocent benign user (adversarial camouflage), the benign node's low posterior ($p_j \approx 0$) drives the product toward zero, suppressing false trail reinforcement. 
-
-Step 3 computes neighborhood consensus $\bar{R}_i$, damping localized variance. In Step 4, target potentials $T_i$ are smoothed via Exponential Moving Average (EMA) with deposit rate $\gamma_u$ and clamped within $[\tau_{\min}, \tau_{\max}]$, preventing trail explosion or starvation. Finally, Step 5 derives edge-level priors $\tau_{ij}$ and applies relation-specific softmax normalization with temperature $T_s$ to construct valid edge aggregation distributions $\hat{\tau}_{ij}$ for the subsequent message-passing pass.
-
-\begin{algorithm}[htbp]
-\caption{Stigmergic Pheromone Update Cycle}
-\label{alg:aco_update}
-\begin{algorithmic}[1]
-\Require Adjacency edges $\mathcal{E}$, observed training labels $\mathbf{Y}_{\text{train}}$, posterior fraud probabilities $\mathbf{p} \in [0, 1]^N$, current node potentials $\mathbf{s} \in \mathbb{R}^N$, evaporation rate $\rho$, bounds $[\tau_{\min}, \tau_{\max}]$, deposit rate $\gamma_u$.
-\Ensure Updated node potentials $\mathbf{s}'$ and normalized edge priors $\hat{\boldsymbol{\tau}}$.
-\State \textbf{// Step 1: Synthesize Observed Risk Vector}
-\State $\tilde{\mathbf{p}} \leftarrow \mathbf{p}.\text{clone}()$
-\For{$v_i \in \mathcal{V}_{\text{train}}$}
-    \State $\tilde{p}_i \leftarrow y_i$ \Comment{Incorporate known ground-truth labels}
-\EndFor
-\State \textbf{// Step 2: Edge-Level Risk Co-occurrence}
-\For{$(i, j) \in \mathcal{E}$}
-    \State $R_{ij} \leftarrow \sqrt{\tilde{p}_i \cdot \tilde{p}_j + 10^{-8}}$ \Comment{Joint anomaly indicator}
-\EndFor
-\State \textbf{// Step 3: Neighborhood Consensus Aggregation}
-\For{$v_i \in \mathcal{V}$}
-    \State $\bar{R}_i \leftarrow \frac{1}{\max(1, |\mathcal{N}(i)|)} \sum_{j \in \mathcal{N}(i)} R_{ij}$
-    \State $T_i \leftarrow \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot \left[0.5 \tilde{p}_i + 0.5 \bar{R}_i\right]$
-    \State \textbf{// Step 4: EMA Evaporation and Reinforcement}
-    \State $s_i' \leftarrow (1 - \gamma_u) \cdot s_i + \gamma_u \cdot T_i$
-    \State $s_i' \leftarrow \max\left(\tau_{\min}, \, \min\left(\tau_{\max}, \, s_i'\right)\right)$
-\EndFor
-\State \textbf{// Step 5: Softmax Normalized Edge Priors}
-\For{$(i, j) \in \mathcal{E}$}
-    \State $\tau_{ij} \leftarrow \sqrt{s_i' \cdot s_j' + 10^{-8}}$
-    \State $\hat{\tau}_{ij} \leftarrow \frac{\exp(\tau_{ij} / T_s)}{\sum_{k \in \mathcal{N}(j)} \exp(\tau_{kj} / T_s)}$
-\EndFor
-\State \Return $\mathbf{s}'$, $\hat{\boldsymbol{\tau}}$
-\end{algorithmic}
-\end{algorithm}
-
 \subsection{Dual-Loop End-to-End Training and Optimization Procedure}
-Algorithm~\ref{alg:training_pipeline} details the interleaved optimization loop governing the ACO-GNN architecture. The training cycle couples continuous gradient-based parameter updates on neural weights $\Theta$ with non-differentiable evolutionary stigmergic updates on edge potentials.
+The complete training pipeline (formalized in Algorithm~\ref{alg:training_pipeline}, Appendix~\ref{app:algorithms}) couples continuous gradient descent on neural weights $\Theta$ with non-differentiable evolutionary feedback on structural memory:
 
-During the forward pass (Steps 2--5), the current gating logit $\psi$ determines the blending coefficient $\lambda = \sigma(\psi)$, producing layer representations $\mathbf{h}^{(l+1)}$ that fuse neural attention with stigmergic priors. Logits from the classifier MLP yield posterior minority fraud probabilities $\mathbf{p}$. Backpropagation (Steps 7--9) computes gradients exclusively from the focal loss $\mathcal{L}_{\text{FL}}$ evaluated over the training set $\mathcal{V}_{\text{train}}$, updating neural weights $\Theta$.
-
-Crucially, in Step 11, the updated posterior probabilities are dispatched to the ACO engine to execute Algorithm~\ref{alg:aco_update}, updating persistent structural memory $\mathbf{s}'$ and $\hat{\boldsymbol{\tau}}$. Unlike recurrent neural models or reinforcement learning controllers that require backpropagation through time or policy gradient rollouts, this evolutionary update requires zero gradient tracking. Validation monitoring (Steps 12--22) dynamically calibrates the classification threshold $\theta_{\text{val}}$ using Algorithm~\ref{alg:threshold_calibration} and triggers early stopping on the composite criterion $S_{\text{val}} = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$ to avoid overfitting.
-
-\begin{algorithm}[htbp]
-\caption{ACO-GNN End-to-End Training and Optimization Loop}
-\label{alg:training_pipeline}
-\begin{algorithmic}[1]
-\Require Graph $\mathcal{G} = (\mathcal{V}, \mathcal{E}, \mathcal{R}, \mathbf{X}, \mathbf{Y})$, maximum epochs $E_{\max}$, learning rate $\eta$, patience $P$.
-\Ensure Optimal model parameters $\Theta^*$ and calibrated threshold $\theta^*$.
-\State Initialize network parameters $\Theta = \{\mathbf{W}_{\text{root}}, \mathbf{W}_r, \mathbf{a}_{\text{src}}, \mathbf{a}_{\text{dst}}, \psi, \Theta_{\text{MLP}}\}$
-\State Initialize ACO engine: $\mathbf{s} \leftarrow \mathbf{1}^N$, $\hat{\boldsymbol{\tau}} \leftarrow \text{Uniform priors}$
-\State Best validation score $S^* \leftarrow 0$, early stopping counter $c \leftarrow 0$
-\For{$\text{epoch} = 1 \text{ to } E_{\max}$}
-    \State \textbf{// Forward Message-Passing Pass}
-    \State $\lambda \leftarrow \sigma(\psi)$
-    \State Compute layer outputs $\mathbf{h}^{(l+1)}$ using Equation \ref{eq:dual_attention_blend} and \ref{eq:final_layer_norm}
-    \State Compute class logits: $\hat{\mathbf{Z}} = \text{MLP}(\mathbf{h}^{(L)})$
-    \State $\mathbf{p} \leftarrow \text{Softmax}(\hat{\mathbf{Z}})[:, 1]$ \Comment{Minority fraud class probabilities}
-    \State \textbf{// Loss Computation}
-    \State $\mathcal{L} \leftarrow \mathcal{L}_{\text{FL}}\left(\mathbf{p}[\mathcal{V}_{\text{train}}], \, \mathbf{Y}[\mathcal{V}_{\text{train}}]\right)$
-    \State \textbf{// Backpropagation}
-    \State $\Theta \leftarrow \Theta - \eta \cdot \nabla_\Theta \mathcal{L}$
-    \State \textbf{// Evolutionary Stigmergic Feedback}
-    \State $\mathbf{s}, \hat{\boldsymbol{\tau}} \leftarrow \text{UpdatePheromones}(\mathcal{E}, \mathbf{Y}[\mathcal{V}_{\text{train}}], \mathbf{p}, \mathbf{s})$ \Comment{Algorithm \ref{alg:aco_update}}
-    \State \textbf{// Validation Evaluation and Calibration}
-    \State $\theta_{\text{val}} \leftarrow \text{CalibrateThreshold}(\mathbf{p}[\mathcal{V}_{\text{val}}], \, \mathbf{Y}[\mathcal{V}_{\text{val}}])$ \Comment{Algorithm \ref{alg:threshold_calibration}}
-    \State $S_{\text{val}} \leftarrow \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$ \Comment{Composite early stopping score}
-    \If{$S_{\text{val}} > S^*$}
-        \State $S^* \leftarrow S_{\text{val}}$, $\Theta^* \leftarrow \Theta$, $\theta^* \leftarrow \theta_{\text{val}}$, $c \leftarrow 0$
-    \Else
-        \State $c \leftarrow c + 1$
-        \If{$c \ge P$}
-            \State \textbf{break} \Comment{Early stopping triggered}
-        \EndIf
-    \EndIf
-\EndFor
-\State \Return $\Theta^*$, $\theta^*$
-\end{algorithmic}
-\end{algorithm}
+\begin{itemize}
+    \item \textbf{Forward Propagation:} At each epoch, the learnable logit $\psi$ determines the dynamic convex blending ratio $\lambda = \sigma(\psi) \in (0, 1)$. Relational neighborhood aggregations blend self-attention $\alpha_{ij}^{(r)}$ with stigmergic priors $\hat{\tau}_{ij}^{(r)}$ using Equation~\ref{eq:dual_attention_blend}, followed by layer normalization and residual skips (Equation~\ref{eq:final_layer_norm}).
+    \item \textbf{Class-Imbalance Loss Optimization:} Neural parameters $\Theta$ are optimized via Adam using class-imbalanced focal loss $\mathcal{L}_{\text{FL}}$ (Equation~\ref{eq:focal_loss}) evaluated exclusively over training vertices $\mathcal{V}_{\text{train}}$. The focusing parameter $\gamma = 2.0$ downweights easy benign examples, compelling gradients to focus on hard, camouflaged fraud nodes.
+    \item \textbf{Evolutionary Stigmergic Feedback:} Immediately following backward parameter updates, the current posterior fraud probabilities are dispatched to the ACO engine to execute the stigmergic update cycle. Because pheromone updates operate outside the PyTorch computational graph via \texttt{torch.no\_grad()}, this evolutionary loop incurs zero backpropagation memory overhead.
+    \item \textbf{Validation-Driven Early Stopping:} To prevent overfitting to majority-class shortcuts, the composite validation metric $S_{\text{val}} = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$ is tracked with patience $P=30$, restoring the optimal model parameters $\Theta^*$ and threshold $\theta^*$ upon convergence.
+\end{itemize}
 
 \subsection{Validation-Calibrated Decision Threshold Search}
-In extreme class-imbalanced environments where fraudulent entities represent less than 5\% of total nodes (e.g., YelpChi and Amazon), evaluating predictions using the canonical decision threshold $\theta = 0.50$ introduces substantial bias toward the majority class. Under this default cutoff, models frequently achieve deceptively high overall accuracy while suffering near-zero recall on the minority illicit class.
+In severe class-imbalanced fraud detection (where illicit entities represent less than 5\% of transactions), evaluating predictions using the default threshold $\theta = 0.50$ produces extreme majority-class bias. Models frequently predict nearly all entities as benign, obtaining deceptively high accuracy while suffering near-zero illicit recall.
 
-To overcome this, Algorithm~\ref{alg:threshold_calibration} executes an automated threshold calibration sweep at the end of each validation cycle. The algorithm evaluates candidate decision thresholds $\theta \in [0.05, 0.95]$ with step size $0.01$ over continuous validation probabilities $\mathbf{p}_{\text{val}}$, computing precision, recall, and illicit $F_1$ score for each candidate. The threshold $\theta^*$ maximizing validation $F_1$ is selected and subsequently frozen for final test set inference. Calibrating exclusively on the validation set guarantees that test set evaluations remain strictly inductive and unbiased.
-
-\begin{algorithm}[htbp]
-\caption{Validation-Calibrated Optimal Decision Threshold Search}
-\label{alg:threshold_calibration}
-\begin{algorithmic}[1]
-\Require Predicted continuous probabilities $\mathbf{p}_{\text{val}} \in [0, 1]^{N_{\text{val}}}$, ground-truth binary labels $\mathbf{Y}_{\text{val}} \in \{0, 1\}^{N_{\text{val}}}$.
-\Ensure Optimal decision threshold $\theta^*$.
-\State Candidate set $\Theta_{\text{cand}} \leftarrow \{0.05, 0.06, \dots, 0.95\}$
-\State Best F1 score $F_1^* \leftarrow 0$, optimal threshold $\theta^* \leftarrow 0.5$
-\For{$\theta \in \Theta_{\text{cand}}$}
-    \State $\hat{\mathbf{y}}_\theta \leftarrow \mathbb{I}(\mathbf{p}_{\text{val}} \ge \theta)$
-    \State $\text{TP} \leftarrow \sum ( \hat{\mathbf{y}}_\theta == 1 \land \mathbf{Y}_{\text{val}} == 1 )$
-    \State $\text{FP} \leftarrow \sum ( \hat{\mathbf{y}}_\theta == 1 \land \mathbf{Y}_{\text{val}} == 0 )$
-    \State $\text{FN} \leftarrow \sum ( \hat{\mathbf{y}}_\theta == 0 \land \mathbf{Y}_{\text{val}} == 1 )$
-    \State $\text{Precision} \leftarrow \frac{\text{TP}}{\text{TP} + \text{FP} + 10^{-8}}$, $\quad \text{Recall} \leftarrow \frac{\text{TP}}{\text{TP} + \text{FN} + 10^{-8}}$
-    \State $F_1 \leftarrow \frac{2 \cdot \text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall} + 10^{-8}}$
-    \If{$F_1 > F_1^*$}
-        \State $F_1^* \leftarrow F_1, \quad \theta^* \leftarrow \theta$
-    \EndIf
-\EndFor
-\State \Return $\theta^*$
-\end{algorithmic}
-\end{algorithm}
+To address this limitation, the framework executes an automated threshold calibration sweep (formalized in Algorithm~\ref{alg:threshold_calibration}, Appendix~\ref{app:algorithms}) at the end of each validation cycle:
+\begin{enumerate}
+    \item Continuous validation posteriors $\mathbf{p}_{\text{val}} \in [0, 1]^{N_{\text{val}}}$ are evaluated across a fine-grained grid of candidate cutoffs $\Theta_{\text{cand}} = \{0.05, 0.06, \dots, 0.95\}$.
+    \item For each candidate cutoff $\theta$, binary classifications $\hat{\mathbf{y}}_\theta = \mathbb{I}(\mathbf{p}_{\text{val}} \ge \theta)$ are matched against validation labels $\mathbf{Y}_{\text{val}}$ to compute true positives, false positives, and false negatives.
+    \item The optimal threshold $\theta^* = \arg\max_{\theta \in \Theta_{\text{cand}}} \text{F1}_{\text{illicit}}(\theta)$ that maximizes the minority fraud $F_1$ score is preserved and locked for final test set evaluation.
+\end{enumerate}
+By restricting the threshold search strictly to the validation split, the inductive integrity of the testing pipeline is rigorously preserved without target leakage.
 
 % ------------------------------------------------------------------------------
 % SECTION 4.3: REAL-DATASET ADAPTATIONS
