@@ -1,0 +1,139 @@
+\chapter{Literature Review and Theoretical Foundations}
+\label{ch:funda}
+
+The rapid proliferation of coordinated financial fraud across digital credit, e-commerce, and transaction ecosystems has spurred intense academic inquiry into Graph Neural Networks (GNNs) and robust anomaly detection. This chapter presents an exhaustive, structured survey of the literature spanning foundational fraud GNNs (2020--2021), cutting-edge developments (2022--2026), and recent survey benchmarks from premier IEEE/ACM journals (completed by \textbf{Saniya}). Furthermore, it surveys ant colony optimization in deep learning (assigned to \textbf{Poorvi}) and establishes the comparative taxonomy and research gap identification (completed by \textbf{Saniya}).
+
+\section[GNN-Based Fraud Detection]{\textbf{GNN-Based Fraud Detection (Survey 2020--2026) [Written by Saniya]}}
+\label{sec:gnn_fraud_survey}
+
+\subsection{Foundational Fraud GNN Architectures (2020--2021)}
+Early attempts to apply vanilla Graph Convolutional Networks (GCN) \cite{kipf2017semi} and GraphSAGE \cite{hamilton2017inductive} to transaction networks revealed severe vulnerabilities: standard neighborhood averaging pools fraud features with benign majority features, degrading classification boundaries. Between 2020 and 2021, researchers introduced the first generation of camouflage-resistant GNNs:
+
+\begin{enumerate}
+    \item \textbf{CARE-GNN (Dou et al., KDD 2020 \cite{dou2020enhancing}):} Recognizing that fraudsters intentionally craft connections to benign entities, Dou et al. formulated the first dedicated camouflage-resistant GNN. CARE-GNN employs a multi-relation Graph Attention mechanism augmented by a Reinforcement Learning (RL) agent. The RL controller adaptively tunes a top-$p$ neighbor selection threshold per relation type based on feature similarity $\mathcal{D}(h_u, h_v)$:
+    \begin{equation}
+        p^{(r, l)} \leftarrow p^{(r, l)} + \Delta p^{(r, l)} \quad \text{via RL policy gradient}
+    \end{equation}
+    While CARE-GNN pioneered camouflage filtering, its RL policy makes isolated, per-node threshold decisions and maintains zero persistent structural memory across global multi-hop paths.
+    \item \textbf{PC-GNN (Liu et al., WWW 2021 \cite{liu2021pick}):} To combat extreme class imbalance, Liu et al. introduced a label-guided ``Pick and Choose'' subgraph sampling strategy. PC-GNN rebalances the input graph by oversampling minority fraud nodes and filtering out uninformative benign neighbors during mini-batch generation. However, PC-GNN relies on heuristic similarity metrics that fail when fraudsters forge attribute profiles to mimic legitimate users.
+    \item \textbf{BWGNN (Tang et al., ICDM 2021 \cite{tang2021rethinking}):} Tang et al. re-evaluated fraud detection through the lens of spectral graph theory. They demonstrated that while homophilic graphs are dominated by low-frequency graph Laplacian signals, fraud graphs are inherently heterophilic and anomalous, producing pronounced high-frequency spectral components. To capture these anomalies, BWGNN designed a spectral Beta Wavelet filter:
+    \begin{equation}
+        h_i^{(l+1)} = \sum_{k=0}^K \beta_k \cdot \mathbf{L}^k h_i^{(l)}
+    \end{equation}
+    Although effective at isolating localized heterophilic transitions, BWGNN assumes static graph structures and lacks an explicit mechanism to trace coordinating multi-hop rings.
+    \item \textbf{FRAUDRE (Zhang et al., ICDM 2021 \cite{zhang2021fraudre}):} Zhang et al. proposed a dual-resistance framework designed to simultaneously counteract camouflage and severe class imbalance. FRAUDRE computes cross-relation topological similarity to penalize fraudulent nodes masquerading as high-degree benign hubs, while applying a cost-sensitive reweighting loss.
+\end{enumerate}
+
+\subsection{Modern Fraud GNN Architectures (2022--2026)}
+Recent advances have focused on heterophily disentanglement, group attention, and noise-tolerant graph representations:
+
+\begin{enumerate}
+    \item \textbf{H2-FDetector (Shi et al., WWW 2022 \cite{shi2022h2}):} Shi et al. addressed the heterophily dilemma by decoupling the aggregation of homophilic and heterophilic neighbors. H2-FDetector explicitly computes separate relation-aware embeddings for label-consistent and label-divergent connections, mitigating feature distortion:
+    \begin{equation}
+        h_i = \text{CONCAT}\left(h_i^{\text{homo}}, h_i^{\text{hetero}}\right)
+    \end{equation}
+    \item \textbf{GAGA (Wang et al., WWW 2023 \cite{wang2023gaga}):} Wang et al. proposed Group-Aware Graph Anomaly Detection, moving beyond pairwise edge modeling to evaluate multi-party group coordination. GAGA utilizes a group aggregation attention module to detect synchronized collective behaviors.
+    \item \textbf{MTPNet (Zhang et al., IEEE TIFS, Sept 2025 \cite{mtpnet2025}):} Published in \textit{IEEE Transactions on Information Forensics and Security}, MTPNet introduces a multi-temporal partitioned graph attention network. The authors partition continuous transaction streams into multi-scale temporal snapshots, applying global-local attention to filter temporal noise. However, attention scores are recomputed per forward pass without cumulative stigmergic reinforcement.
+    \item \textbf{THG-OAFN (Wei \& Lee, Dec 2025 \cite{wei2025internet}):} Wei and Lee combined temporal heterogeneous graph modeling with a topological GraphSMOTE oversampling algorithm and multi-layer attention fusion. While achieving high benchmark F1 scores on YelpChi, its synthetic oversampling risks introducing topological artifacts in credit underwriting.
+    \item \textbf{Adversarial Generative Defense (Wu et al., IEEE TKDE, Feb 2026 \cite{wu2026defending}):} In \textit{IEEE Transactions on Knowledge and Data Engineering}, Wu et al. formulated a generative graph autoencoder to model adversarial edge additions and structural perturbations. While demonstrating 3\%--7\% robustness gains against targeted attacks, generative structure reconstruction incurs quadratic $\mathcal{O}(N^2)$ candidate evaluation complexity, limiting deployment on large-scale graphs.
+    \item \textbf{Real-World Noise and Imbalance Survey (Ju et al., IEEE TPAMI, March 2026 \cite{ju2026survey}):} Published in \textit{IEEE Transactions on Pattern Analysis and Machine Intelligence}, Ju et al. proved mathematically that standard GNN aggregation collapses exponentially under real-world noise exceeding 20\%, formally validating the necessity for intrinsic edge-regularization mechanisms.
+\end{enumerate}
+
+\subsection{Base Review Paper: Cheng et al. (Frontiers of Computer Science 2025)}
+Our primary conceptual foundation derives from the comprehensive survey by \textbf{Cheng et al. (2025)} \cite{cheng2025graph}, entitled \textit{``Graph Neural Networks for Financial Fraud Detection: A Review''}, published in \textit{Frontiers of Computer Science}. Cheng et al. conducted an exhaustive systematic review covering over 100 benchmark architectures across retail banking, credit card issuance, e-commerce reviews, and anti-money laundering (AML).
+
+Their survey established three critical empirical and methodological insights:
+\begin{enumerate}
+    \item \textbf{Camouflage Vulnerability:} Topological camouflage remains the single greatest vulnerability across all evaluated GNN models. When fraud syndicates inject 20\%--40\% benign connections, the Macro-F1 of top-tier models (including CARE-GNN and PC-GNN) plummets by 25\%--42\%.
+    \item \textbf{Benchmark Reproducibility:} Standardized multi-relational graphs, notably \textbf{YelpChi} (review graph with R-U-R,\allowbreak{} R-T-R,\allowbreak{} and R-S-R meta-paths) and \textbf{Amazon} (with U-P-U,\allowbreak{} U-S-U,\allowbreak{} and U-V-U relations), serve as standard evaluation benchmarks.
+    \item \textbf{Open Research Challenge (Bio-Inspired Heuristics):} In their concluding discussion on open research frontiers, Cheng et al. explicitly emphasized that pure gradient-based backpropagation is easily misled by local camouflage minima. The authors formally advocated for the exploration of \textit{adaptive bio-inspired heuristics and persistent structural prior mechanisms} capable of dynamically re-weighting edges across training cycles without incurring quadratic computational overhead. ACO-GNN was conceived directly in response to this challenge.
+\end{enumerate}
+
+% ------------------------------------------------------------------------------
+% SECTION 2.2: POORVI'S SECTION (PLACEHOLDER FOR POORVI TO FILL)
+% ------------------------------------------------------------------------------
+\section[Ant Colony Optimization in Graph Learning]{\textbf{Ant Colony Optimization and Stigmergic Learning [Written by Poorvi]}}
+\label{sec:aco_background}
+
+Ant Colony Optimization (ACO) is a probabilistic metaheuristic originally introduced by Marco Dorigo in 1992 \cite{dorigo1992optimization, dorigo1996ant}. Inspired by the ethological observation of foraging behaviors in biological ant colonies, ACO relies on \textit{stigmergy}---a decentralized coordination mechanism where individual agents modify their physical environment via chemical secretions known as \textit{pheromones}, indirectly communicating with subsequent agents. This chemical trail serves as an external, persistent spatial memory that guides collective exploration toward optimal structures without requiring centralized control or direct agent-to-agent communication.
+
+\subsection{Foundational Metaheuristic Dynamics}
+In the canonical Ant System (AS) and its refined variant, the Max-Min Ant System (MMAS) \cite{stutzle2000max}, an artificial ant $k$ situated at node $i$ selects the subsequent traversal candidate $j \in \mathcal{N}(i)$ according to a stochastic transition rule balancing trail intensity against local heuristic desirability:
+\begin{equation}
+    P_{ij}^{(k)} = \frac{\left[\tau_{ij}\right]^\alpha \cdot \left[\eta_{ij}\right]^\beta}{\sum_{l \in \mathcal{N}(i)} \left[\tau_{il}\right]^\alpha \cdot \left[\eta_{il}\right]^\beta}
+    \label{eq:canonical_aco_transition}
+\end{equation}
+where $\tau_{ij}$ denotes the pheromone concentration deposited along edge $(i, j)$, $\eta_{ij}$ represents problem-specific heuristic information (e.g., the inverse distance $1/d_{ij}$ in traveling salesperson problems), and parameters $\alpha, \beta \ge 0$ dictate the relative sensitivity to historical collective experience versus immediate heuristic greediness.
+
+To prevent premature stagnation into suboptimal configurations and facilitate adaptive exploration, the pheromone topology undergoes exponential temporal evaporation at a designated rate $\rho \in (0, 1)$:
+\begin{equation}
+    \tau_{ij} \leftarrow (1 - \rho) \cdot \tau_{ij} + \sum_{k=1}^{M} \Delta \tau_{ij}^{(k)}
+    \label{eq:canonical_evaporation}
+\end{equation}
+where $\Delta \tau_{ij}^{(k)}$ represents the incremental deposit contributed by ant $k$, conventionally proportional to the global quality score $Q / L_k$ of its discovered solution path. In MMAS, bounds $[\tau_{\min}, \tau_{\max}]$ are strictly enforced on all edge trails, eliminating both pheromone starvation (total avoidance of viable edges) and premature stagnation (monopolization of the search space by early trajectories).
+
+\subsection{Neural Combinatorial Optimization Hybrids}
+Over the past five years, research into integrating deep representation learning with swarm intelligence has produced modern neuro-algorithmic frameworks. Foremost among these are:
+\begin{enumerate}
+    \item \textbf{DeepACO (NeurIPS 2023)} \cite{ye2023deepaco}: Combines Graph Neural Networks with ant systems for NP-hard combinatorial routing problems (TSP, CVRP, Orienteering). In DeepACO, a GNN functions as a trainable heuristic generator $\eta_\theta(i, j)$, replacing static distance metrics with learned node embeddings to initialize heuristic matrices before ACO sampling passes.
+    \item \textbf{GFACS (ICLR 2024)} \cite{gfacs2024}: Incorporates Graph Flow Attention into Ant Colony Systems, dynamically parameterizing construction graphs to solve constrained combinatorial problems under complex operational constraints.
+    \item \textbf{NeuFACO (2025)}: Introduces neural-guided fast ACO algorithms for dynamic vehicle routing with real-time demand fluctuations.
+\end{enumerate}
+
+\subsection{The Unexplored Research Gap in Financial Fraud Detection}
+Despite the mathematical success of ACO-GNN hybrids in combinatorial optimization, an analysis of the contemporary literature reveals a prominent research void:
+\begin{quote}\small\raggedright
+    \textit{Prior to this work, no literature has integrated continuous stigmergic pheromone dynamics directly into Graph Neural Network neighborhood message-passing for graph anomaly detection or financial fraud ring identification.}
+\end{quote}
+Existing fraud detection graph architectures rely on three primary paradigms:
+\begin{itemize}
+    \item \textbf{Reinforcement Learning Filtering (e.g., CARE-GNN \cite{dou2020care}):} Utilizes multi-agent RL (specifically Bernoulli multi-armed bandits) to establish threshold filtering on neighbor features per relation. While effective for isolating local feature outliers, RL filtering operates as an instantaneous per-epoch decision that discards structural continuity across iterative multi-hop traversals.
+    \item \textbf{Spectral Wavelet / Band-pass Filtering (e.g., BWGNN \cite{tang2022rethinking}):} Designs localized spectral band-pass filters to mitigate ``high-frequency noise'' introduced by camouflage edges. However, spectral approaches treat all graph edges uniformly without tracking persistent transaction patterns over progressive dynamic updates.
+    \item \textbf{Transformer Group Aggregations (e.g., GAGA \cite{wang2023gaga}):} Employs all-to-all dense attention to circumvent graph homophily collapse, at the cost of quadratic computational complexity $\mathcal{O}(N^2)$ and the loss of edge-relational inductive biases.
+\end{itemize}
+
+None of the aforementioned frameworks possess an \textbf{iterative persistent structural memory} that accumulates collective evidence over training epochs and progressively dissolves camouflage connections via continuous decay. By adapting stigmergic pheromone trails as an inductive structural prior alongside parametric neural attention, our framework directly bridges this gap.
+
+
+% ------------------------------------------------------------------------------
+% SECTION 2.3: SANIYA'S SECTION
+% ------------------------------------------------------------------------------
+\section[Research Gap Identification]{\textbf{Research Gap Identification [Written by Saniya]}}
+\label{sec:research_gap}
+
+To synthesize the contemporary landscape, Table~\ref{tab:lit_comparison} presents a systematic comparative analysis across 12 prominent fraud detection frameworks.
+
+\begin{table}[htb]
+\centering
+\caption[Comparison of graph fraud detection frameworks against ACO-GNN]{Systematic comparison of graph fraud detection frameworks against ACO-GNN.}
+\label{tab:lit_comparison}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\textwidth}{@{}l c c c c c >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Model} & \textbf{Venue / Year} & \textbf{Graph Type} & \textbf{Camouflage} & \textbf{Memory} & \textbf{Bio} & \textbf{Operational Bottleneck} \\
+\midrule
+GCN \cite{kipf2017semi} & ICLR 2017 & Homogeneous & None & None & No & Feature over-smoothing under structural noise \\
+GAT \cite{velivckovic2018graph} & ICLR 2018 & Homogeneous & Feature Attention & None & No & Attention deceived by attribute camouflage \\
+CARE-GNN \cite{dou2020enhancing} & KDD 2020 & Heterogeneous & RL Threshold & None & No & Greedy per-node policy, high RL instability \\
+PC-GNN \cite{liu2021pick} & WWW 2021 & Heterogeneous & Subgraph Sampling & None & No & Relies on surface feature similarity \\
+BWGNN \cite{tang2021rethinking} & ICDM 2021 & Homogeneous & Beta Wavelets & None & No & Static spectral filter; misses deep rings \\
+FRAUDRE \cite{zhang2021fraudre} & ICDM 2021 & Heterogeneous & Cost Reweight & None & No & False alarms on high-degree benign hubs \\
+H2-FDetector \cite{shi2022h2} & WWW 2022 & Heterogeneous & Disentangle & None & No & Static separation; no multi-hop persistence \\
+GAGA \cite{wang2023gaga} & WWW 2023 & Heterogeneous & Group Attention & None & No & High computational overhead for group mining \\
+DeepACO \cite{ye2023deepaco} & NeurIPS 2023 & Homogeneous & N/A & TSP Trails & Yes & Limited strictly to combinatorial routing \\
+MTPNet \cite{mtpnet2025} & IEEE TIFS 2025 & Temporal & Partition Attn & None & No & Recomputed per-pass; lacks cross-epoch trail \\
+THG-OAFN \cite{wei2025internet} & PLOS ONE 2025 & Heterogeneous & GraphSMOTE & None & No & Oversampling causes topological artifacts \\
+Wu et al. \cite{wu2026defending} & IEEE TKDE 2026 & Heterogeneous & Generative AE & Latent & No & $\mathcal{O}(N^2)$ candidate edge generation cost \\
+\midrule
+\textbf{ACO-GNN} & \textbf{This Work} & \textbf{Heterogeneous} & \textbf{Pheromones} & \textbf{Stigmergic} & \textbf{Yes} & \textbf{Blends attention with stigmergy; $\mathcal{O}(|E|)$} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+From this comparative taxonomy, three distinct, unaddressed research gaps emerge:
+\begin{enumerate}
+    \item \textbf{Research Gap 1 (Absence of Persistent Edge Memory in GNN Aggregation):} Existing fraud GNNs treat message-passing as an amnesiac process: edge aggregation weights are recomputed in isolation at each iteration from instantaneous node embeddings $h_u, h_v$. When fraudsters disguise their features, the model repeatedly falls into the same camouflage traps. There is no cumulative trace that remembers persistent suspicious multi-hop connectivity.
+    \item \textbf{Research Gap 2 (Brittleness of Hard Threshold Pruning):} Current camouflage defenses (e.g., CARE-GNN's RL thresholding) rely on hard binary edge pruning ($e_{ij} \in \{0, 1\}$). Dropping edges prematurely often severs multi-hop pathways necessary to identify coordinated fraud syndicates spanning 3 to 6 hops.
+    \item \textbf{Research Gap 3 (Unexplored Stigmergic Priors in Deep Learning):} While ACO has proven remarkably effective for discrete combinatorial routing, its continuous stigmergic reinforcement and evaporation dynamics have never been integrated into the continuous message aggregation equations of Graph Neural Networks for node classification or fraud detection.
+\end{enumerate}

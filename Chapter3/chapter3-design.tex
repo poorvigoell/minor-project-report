@@ -1,0 +1,304 @@
+\chapter{System Design and Methodology}
+\label{ch:design}
+\label{chap:methodology}
+
+\begin{tcolorbox}[colback=blue!5,colframe=blue!40,title=\textbf{Chapter 3 Attribution Notice}]
+\textbf{Author:} \textbf{Poorvi} \\
+\textit{This chapter details the theoretical system architecture, mathematical derivations, pheromone dynamics, dual-attention message-passing formulations, and the progressive dynamic streaming extension of the proposed ACO-GNN framework.}
+\end{tcolorbox}
+
+This chapter details the theoretical formulation and mathematical architecture of the proposed \textbf{Pheromone-Guided Graph Neural Network (ACO-GNN)}. Section \ref{sec:arch_overview} presents the end-to-end system topology and data flow. Section \ref{sec:graph_formulation} outlines heterogeneous financial network construction. Section \ref{sec:aco_engine} formalizes the vectorized stigmergic pheromone engine. Section \ref{sec:message_passing} formulates the dual-attention pheromone message-passing convolution. Section \ref{sec:training_objective} describes the focal loss objective, validation-calibrated decision strategy, and training stabilization. Section \ref{sec:tooling} details the computational framework, and Section \ref{sec:dynamic_engine} introduces the progressive dynamic streaming extension.
+
+\section[Overall System Architecture]{Overall System Architecture and Pipeline}
+\label{sec:overall_arch}
+\label{sec:arch_overview}
+
+The design of ACO-GNN addresses the fundamental vulnerability of standard GNNs in adversarial settings: \textit{camouflage poisoning}. Fraudsters systematically disguise their topological profiles by creating legitimate connections (e.g., small transfers or reciprocal endorsements) with non-fraudulent accounts. When standard GCN or GAT aggregators process these tampered neighborhoods, benign features dilute illicit anomaly signals---a phenomenon termed \textit{homophily collapse}.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{0.94\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=1.3cm and 1.8cm,
+    font=\small\sffamily,
+    block/.style={rectangle, draw=blue!70, fill=blue!8, thick, rounded corners, minimum height=1.0cm, minimum width=2.8cm, align=center},
+    aco_block/.style={rectangle, draw=orange!80, fill=orange!10, thick, rounded corners, minimum height=1.0cm, minimum width=2.8cm, align=center},
+    gnn_block/.style={rectangle, draw=purple!80, fill=purple!10, thick, rounded corners, minimum height=1.0cm, minimum width=2.8cm, align=center},
+    loss_block/.style={rectangle, draw=red!70, fill=red!8, thick, rounded corners, minimum height=1.0cm, minimum width=2.8cm, align=center},
+    line/.style={draw=black!75, -{Latex[length=2.5mm]}, thick}
+]
+
+    % Nodes
+    \node[block] (input) {Heterogeneous\\Lending Graph\\$\mathcal{G} = (\mathcal{V}, \mathcal{E}, \mathcal{R})$};
+    \node[aco_block, right=of input] (aco) {Vectorized ACO\\Stigmergy Engine\\$\tau_{ij} \in [\tau_{\min}, \tau_{\max}]$};
+    \node[gnn_block, right=of aco] (conv) {Pheromone-Guided\\Convolution Layer\\$\lambda \alpha_{ij} + (1-\lambda)\hat{\tau}_{ij}$};
+    \node[gnn_block, below=of conv] (mlp) {Classification MLP\\+ LayerNorm \& Skip\\$\hat{\mathbf{y}}_i \in [0, 1]^2$};
+    \node[loss_block, left=of mlp] (loss) {Focal Loss\\Optimization\\$\text{FL}(p_t) = -\alpha_t(1-p_t)^\gamma \log p_t$};
+    \node[aco_block, left=of loss] (update) {Pheromone Evaporation\\\& Risk Reinforcement\\$\tau \leftarrow (1-\rho)\tau + \Delta \tau$};
+
+    % Arrows
+    \path[line] (input) -- node[above] {Edge Lists} (aco);
+    \path[line] (aco) -- node[above] {$\hat{\tau}_{ij}$ Priors} (conv);
+    \path[line] (input) |- ([yshift=0.2cm]conv.west);
+    \path[line] (conv) -- node[right] {Embeddings $\mathbf{h}_i^{(L)}$} (mlp);
+    \path[line] (mlp) -- node[above] {Softmax Logits} (loss);
+    \path[line] (loss) -- node[above] {Gradients $\nabla_\theta$} (update);
+    \path[line] (update) -- node[left] {Refined Trails} (aco);
+
+    % Container Box for iterative feedback
+    \begin{scope}[on background layer]
+        \node[draw=gray!50, dashed, fill=gray!3, rounded corners=8pt, fit=(aco)(conv)(mlp)(loss)(update), label=above:\textbf{Iterative Dual-Loop Learning Cycle}] {};
+    \end{scope}
+
+\end{tikzpicture}%
+}
+\caption[End-to-End Architectural Data Flow of ACO-GNN Framework]{End-to-End Architectural Data Flow of the Proposed ACO-GNN Framework. The system maintains two coupled feedback loops: a gradient-based backpropagation loop optimizing neural weights $\Theta$, and an evolutionary stigmergic loop maintaining structural trail memory $\tau_{ij}$.}
+\label{fig:system_architecture}
+\end{figure}
+
+The framework operates via two coupled, co-evolving processes depicted in Figure \ref{fig:system_architecture}:
+\begin{enumerate}
+    \item \textbf{Parametric Neural Forward Pass:} The GNN computes localized feature similarities $\alpha_{ij}^{(r)}$ via multi-head self-attention. Concurrently, it queries the non-parametric ACO engine for relation-specific structural priors $\hat{\tau}_{ij}^{(r)}$, blending them adaptively through a learnable gating parameter $\lambda \in [0, 1]$.
+    \item \textbf{Stigmergic Evolutionary Feedback:} At the conclusion of each training iteration, the posterior fraud likelihoods generated by the classifier serve as collective biological reward signals. Edges that interconnect nodes exhibiting correlated fraud indicators receive positive pheromone reinforcement ($\Delta \tau_{ij}$), while spurious camouflage edges experience uniform exponential evaporation ($\rho$), gradually extinguishing their transmission weight in subsequent epochs.
+\end{enumerate}
+
+\section[Heterogeneous Graph Construction]{Heterogeneous Graph Construction and Ingestion}
+\label{sec:relation_construction}
+\label{sec:graph_formulation}
+
+We formally define a financial transaction/lending network as an attributed multi-relational heterogeneous graph:
+\begin{equation}
+    \mathcal{G} = \left(\mathcal{V}, \mathcal{E}, \mathcal{R}, \mathbf{X}, \mathbf{Y}\right)
+\end{equation}
+where $\mathcal{V} = \{v_1, v_2, \dots, v_N\}$ represents the set of $N$ entities (e.g., loan applicants, merchants, digital accounts), and $\mathcal{E} \subseteq \mathcal{V} \times \mathcal{V} \times \mathcal{R}$ denotes directed edges annotated with relation types $r \in \mathcal{R}$. The matrix $\mathbf{X} \in \mathbb{R}^{N \times D}$ defines $D$-dimensional input feature vectors describing entity profile attributes (credit score, repayment velocity, device metadata). Ground-truth binary labels are denoted by $\mathbf{Y} \in \{0, 1\}^N$, where $y_i = 1$ denotes an illicit fraudulent entity and $y_i = 0$ denotes a benign entity.
+
+\subsection{Meta-Path Formulations on Real-World Benchmarks}
+In financial and review fraud graphs, raw transaction graphs are decomposed into multiple homogeneous subgraphs via typed relation schemas or meta-paths:
+\begin{itemize}
+    \item \textbf{YelpChi Fraud Graph ($\mathcal{R} = 3$):}
+    \begin{itemize}
+        \item $R\text{-}U\text{-}R$: Connects reviews authored by the same user account ($|\mathcal{E}_1| = 49,297$).
+        \item $R\text{-}T\text{-}R$: Connects reviews posted for the same business within the same 30-day temporal window ($|\mathcal{E}_2| = 573,616$).
+        \item $R\text{-}S\text{-}R$: Connects reviews sharing identical star ratings posted for the same business entity ($|\mathcal{E}_3| = 3,402,743$).
+    \end{itemize}
+    \item \textbf{Amazon Fraud Graph ($\mathcal{R} = 3$):}
+    \begin{itemize}
+        \item $U\text{-}P\text{-}U$: Connects users who reviewed at least one identical product ($|\mathcal{E}_1| = 175,608$).
+        \item $U\text{-}S\text{-}U$: Connects users who share identical star ratings within a 1-week window ($|\mathcal{E}_2| = 3,566,479$).
+        \item $U\text{-}V\text{-}U$: Connects users exhibiting top-5\% mutually high text similarity across review bodies ($|\mathcal{E}_3| = 1,074,374$).
+    \end{itemize}
+\end{itemize}
+
+\subsection{Dynamic Streaming Graph Partitioning}
+To evaluate model performance under non-stationary transaction flows, our framework implements a dynamic temporal stream generator:
+\begin{equation}
+    \mathcal{G}^{(t)} = \left(\mathcal{V}^{(t)}, \mathcal{E}^{(t)}\right), \quad t \in \{1, 2, \dots, T\}
+\end{equation}
+where each batch arrives sequentially. Let $\mathcal{V}^{(t)} = \mathcal{V}^{(t-1)} \cup \Delta \mathcal{V}^{(t)}$ and $\mathcal{E}^{(t)} = \mathcal{E}^{(t-1)} \cup \Delta \mathcal{E}^{(t)}$. When new entities and edges emerge, the model evaluates incoming nodes without resetting prior historical states, directly challenging the persistence of the stigmergic trail.
+
+\section[Stigmergic Pheromone Engine Mechanics]{Stigmergic Pheromone Engine Mechanics}
+\label{sec:pheromone_engine}
+\label{sec:aco_engine}
+
+The core bio-inspired module is the \textbf{Vectorized Stigmergy Engine} (implemented as \texttt{Vectorized}\allowbreak\texttt{ACO}\allowbreak\texttt{Engine}). In contrast to traditional ant systems that simulate individual walkers, our engine executes stigmergy via vectorized tensor operations over sparse adjacency structures.
+
+\subsection{Node-Level Pheromone Memory and Edge Trail Mapping}
+For large-scale networks (such as YelpChi with $3.8 \times 10^6$ edges), storing independent edge-level scalar parameters introduces substantial memory overhead. We introduce a dual-representation formulation:
+\begin{enumerate}
+    \item Persistent stigmergic memory is maintained as a node-level anomaly potential vector $\mathbf{s} \in [\tau_{\min}, \tau_{\max}]^N$, where $s_i$ quantifies the accumulated fraud-ring participation index of entity $i$.
+    \item When a message-passing step evaluates edge $e_{ij} = (i, j)$, the edge pheromone trail $\tau_{ij}$ is derived dynamically via the geometric mean of its endpoint potentials:
+    \begin{equation}
+        \tau_{ij} = \sqrt{s_i \cdot s_j + \epsilon}
+        \label{eq:edge_pheromone_derivation}
+    \end{equation}
+    where $\epsilon = 10^{-8}$ prevents numerical zero gradients. This formulation guarantees bidirectional symmetry for undirected relation subgraphs and reduces the memory footprint from $\mathcal{O}(|\mathcal{E}|)$ to $\mathcal{O}(|\mathcal{V}|)$. This node-level potential memory is optimized for static graphs; for non-stationary progressive streaming, our framework introduces an edge-level formulation with cold-start tracking detailed in Section~\ref{sec:dynamic_engine}.
+\end{enumerate}
+
+\subsection{Pheromone Initialization}
+At the initialization epoch $t = 0$, all entities receive a neutral, uniform trail density:
+\begin{equation}
+    s_i^{(0)} = \tau_0 = 1.0, \quad \forall v_i \in \mathcal{V}
+\end{equation}
+which guarantees an uninformative prior ($\tau_{ij} = 1.0$) prior to model exploration.
+
+\subsection{Exponential Evaporation}
+To dissolve spurious links and forget transient camouflage perturbations, an exponential decay is applied to the global pheromone state at each training epoch:
+\begin{equation}
+    \mathbf{s} \leftarrow \mathbf{s} \cdot (1 - \rho)
+    \label{eq:evaporation_step}
+\end{equation}
+where $\rho \in (0, 1)$ is the evaporation rate (default $\rho = 0.05$; empirically tuned to $\rho = 0.15$ on YelpChi static benchmarks and $\rho = 0.03$ for dynamic streaming experiments). If an edge $(i, j)$ represents a deceptive camouflage link established between an illicit node and a benign target, the benign node will fail to sustain positive fraud reinforcement in subsequent epochs. As a consequence, $\tau_{ij}$ decays exponentially toward $\tau_{\min} = 0.01$.
+
+\subsection{Risk Reinforcement and Ground-Truth Feedback}
+Let $p_i = P(y_i = 1 \mid \mathbf{x}_i, \mathcal{G})$ denote the model's posterior fraud probability for entity $i$. To synthesize observed labels with semi-supervised transductive predictions without introducing label leakage into the test set, we construct an observed risk signal $\tilde{p}_i$:
+\begin{equation}
+    \tilde{p}_i = 
+    \begin{cases}
+        y_i, & \text{if } v_i \in \mathcal{V}_{\text{train}} \\
+        \text{clamp}(p_i, 0.0, 1.0), & \text{if } v_i \in \mathcal{V} \setminus \mathcal{V}_{\text{train}}
+    \end{cases}
+\end{equation}
+
+The mutual edge reward $R_{ij}$ captures the co-occurrence probability that both connected entities belong to a coordinated fraud ring:
+\begin{equation}
+    R_{ij} = \sqrt{\tilde{p}_i \cdot \tilde{p}_j + \epsilon}
+\end{equation}
+
+This pairwise reward is aggregated back to local neighborhoods through a degree-normalized scatter sum:
+\begin{equation}
+    \bar{R}_i = \frac{\sum_{j \in \mathcal{N}(i)} R_{ij}}{\max\left(1, |\mathcal{N}(i)|\right)}
+\end{equation}
+
+The joint anomaly target for entity $i$ blends its intrinsic posterior with its neighborhood consensus:
+\begin{equation}
+    T_i = \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot \left[0.5 \cdot \tilde{p}_i + 0.5 \cdot \bar{R}_i\right]
+\end{equation}
+
+The final pheromone update follows an Exponential Moving Average (EMA) formulation:
+\begin{equation}
+    s_i \leftarrow \text{clamp}\left( (1 - \gamma_u) \cdot s_i + \gamma_u \cdot T_i, \, \tau_{\min}, \, \tau_{\max} \right)
+    \label{eq:reinforce_ema}
+\end{equation}
+where $\gamma_u = \min(1.0, \max(0.0, \rho \cdot Q \cdot w_{\text{reinforce}}))$ regulates the momentum of trail accumulation.
+
+\subsection{Softmax Prior Normalization}
+Prior to message aggregation, raw edge pheromone intensities $\tau_{ij}$ are normalized across incoming incident neighbors targeting destination node $j$. For relation type $r$, the structural prior $\hat{\tau}_{ij}^{(r)}$ is defined as:
+\begin{equation}
+    \hat{\tau}_{ij}^{(r)} = \frac{\exp\left(\tau_{ij}^{(r)} / T_s\right)}{\sum_{k \in \mathcal{N}_r(j)} \exp\left(\tau_{kj}^{(r)} / T_s\right)}
+    \label{eq:tau_softmax}
+\end{equation}
+where $T_s > 0$ is a temperature hyperparameter (default $T_s = 1.0$). This normalization ensures that $\sum_{i \in \mathcal{N}_r(j)} \hat{\tau}_{ij}^{(r)} = 1$, providing a mathematically rigorous probability distribution over neighborhood incident connections.
+
+\section[Dual-Attention Blended Message-Passing]{Dual-Attention Blended Message Passing}
+\label{sec:dual_attention}
+\label{sec:message_passing}
+
+The graph convolution operation is formulated as the \textbf{Pheromone-Guided Convolutional Layer} (implemented as \texttt{Pheromone}\allowbreak\texttt{Guided}\allowbreak\texttt{Conv}), unifying parametric feature attention with the persistent stigmergic prior.
+
+\subsection{Dual-Attention Blending Mechanism}
+Let $\mathbf{h}_i^{(l)} \in \mathbb{R}^{d_l}$ denote the latent representation of entity $i$ at layer $l$. For each relation $r \in \mathcal{R}$, entity features are projected through relation-specific weight transformation matrices $\mathbf{W}_r^{(l)} \in \mathbb{R}^{d_{l+1} \times d_l}$:
+\begin{equation}
+    \mathbf{z}_{i, r}^{(l)} = \mathbf{W}_r^{(l)} \mathbf{h}_i^{(l)}
+\end{equation}
+
+Parametric self-attention coefficients $\alpha_{ij}^{(r)}$ are computed following the Graph Attention (GAT) formulation with LeakyReLU non-linearities:
+\begin{equation}
+    e_{ij}^{(r)} = \text{LeakyReLU}\left(\mathbf{a}_{\text{src}}^{(r)\top} \mathbf{z}_{i, r}^{(l)} + \mathbf{a}_{\text{dst}}^{(r)\top} \mathbf{z}_{j, r}^{(l)}\right)
+\end{equation}
+\begin{equation}
+    \alpha_{ij}^{(r)} = \frac{\exp\left(e_{ij}^{(r)}\right)}{\sum_{k \in \mathcal{N}_r(j)} \exp\left(e_{kj}^{(r)}\right)}
+    \label{eq:gat_attention}
+\end{equation}
+where $\mathbf{a}_{\text{src}}^{(r)}, \mathbf{a}_{\text{dst}}^{(r)} \in \mathbb{R}^{d_{l+1}}$ are learnable projection vectors.
+
+The unified edge transmission weight $\Omega_{ij}^{(r)}$ is computed via the convex combination of parametric attention $\alpha_{ij}^{(r)}$ and the stigmergic prior $\hat{\tau}_{ij}^{(r)}$:
+\begin{equation}
+    \Omega_{ij}^{(r)} = \lambda \cdot \alpha_{ij}^{(r)} + (1 - \lambda) \cdot \hat{\tau}_{ij}^{(r)}
+    \label{eq:dual_attention_blend}
+\end{equation}
+where $\lambda$ represents the blending coefficient. To enable the network to autonomously arbitrate between instantaneous feature similarity and persistent structural memory, $\lambda$ is parameterized as an unconstrained scalar $\psi \in \mathbb{R}$ transformed via a sigmoid activation:
+\begin{equation}
+    \lambda = \sigma(\psi) = \frac{1}{1 + e^{-\psi}}
+\end{equation}
+Initialized at $\psi = 0$ ($\lambda = 0.5$), $\lambda$ is optimized via end-to-end backpropagation.
+
+\subsection{Multi-Relational Aggregation with Relation Gating}
+Transformed neighbor messages scaled by $\Omega_{ij}^{(r)}$ are accumulated across all incident relations:
+\begin{equation}
+    \mathbf{m}_j^{(l)} = \sum_{r \in \mathcal{R}} \beta_r \sum_{i \in \mathcal{N}_r(j)} \Omega_{ij}^{(r)} \mathbf{z}_{i, r}^{(l)}
+    \label{eq:multi_rel_agg}
+\end{equation}
+where $\beta_r$ is an optional relation-importance gating coefficient computed via softmax over learnable relation logits:
+\begin{equation}
+    \beta_r = \frac{\exp(\omega_r)}{\sum_{r' \in \mathcal{R}} \exp(\omega_{r'})}
+\end{equation}
+In standard configuration ($\beta_r = 1$), messages are summed directly across relations.
+
+\subsection{Self-Loop Projection, Skip Connections, and Layer Normalization}
+To preserve identity attributes and mitigate oversmoothing across multi-hop iterations, the layer incorporates a dedicated root node transformation $\mathbf{W}_{\text{root}}^{(l)} \in \mathbb{R}^{d_{l+1} \times d_l}$, residual skip additions, and layer normalization:
+\begin{equation}
+    \tilde{\mathbf{h}}_j^{(l+1)} = \mathbf{W}_{\text{root}}^{(l)} \mathbf{h}_j^{(l)} + \mathbf{m}_j^{(l)}
+\end{equation}
+\begin{equation}
+    \mathbf{h}_j^{(l+1)} = \mathbf{h}_j^{(l)} + \text{Dropout}\left(\text{ReLU}\left(\text{LayerNorm}\left(\tilde{\mathbf{h}}_j^{(l+1)}\right)\right), \, p\right)
+    \label{eq:final_layer_norm}
+\end{equation}
+where $p$ is the dropout probability (default $p = 0.3$).
+
+\section[Class-Imbalance Loss Formulation]{Class-Imbalance Loss Formulation and Optimization}
+\label{sec:focal_loss}
+\label{sec:training_objective}
+
+\subsection{Class-Imbalanced Focal Loss}
+Financial fraud benchmarks exhibit extreme class skew, with fraudulent entities representing only $5\%$ to $15\%$ of all accounts. Traditional Cross-Entropy loss is overwhelmed by benign gradients, causing the network to converge toward trivial majority-class predictors. We implement the binary $\alpha$-balanced Focal Loss \cite{lin2017focal}:
+\begin{equation}
+    \mathcal{L}_{\text{FL}}(p_t) = -\alpha_t \left(1 - p_t\right)^\gamma \log(p_t)
+    \label{eq:focal_loss}
+\end{equation}
+where $p_t$ represents the model's estimated probability for the correct class:
+\begin{equation}
+    p_t = 
+    \begin{cases}
+        \hat{p}_i, & \text{if } y_i = 1 \\
+        1 - \hat{p}_i, & \text{if } y_i = 0
+    \end{cases}
+\end{equation}
+The focusing parameter $\gamma = 2.0$ dynamically downweights the loss assigned to easily classified benign nodes, concentrating backpropagated gradients on hard, ambiguous, and camouflaged fraud nodes. The class-weighting factor $\alpha = 0.75$ balances minority illicit node representation.
+
+\subsection{Validation-Calibrated Optimal Decision Thresholding}
+A standard classification decision threshold of $\theta = 0.5$ is suboptimal under extreme class imbalance and asymmetric false-negative costs. Rather than imposing an arbitrary fixed cut-off, our training pipeline executes post-epoch validation calibration. Over the held-out validation set $\mathcal{V}_{\text{val}}$, the optimal decision threshold $\theta^*$ is selected by maximizing the minority-class Illicit-F1 metric:
+\begin{equation}
+    \theta^* = \arg\max_{\theta \in [0.05, 0.95]} \text{F1}_{\text{illicit}}\left(\mathbf{Y}_{\text{val}}, \, \mathbb{I}\left(\hat{\mathbf{P}}_{\text{val}} \ge \theta\right)\right)
+    \label{eq:threshold_calibration}
+\end{equation}
+
+\textbf{Dual Threshold Reporting Protocol.} To ensure fair benchmarking against CARE-GNN (which reports results at $\theta = 0.5$), our pipeline evaluates the test partition under \textit{both} decision boundaries: the standard $\theta = 0.5$ (for direct benchmark parity) and the validation-calibrated $\theta^*$ (demonstrating the model's full potential).
+
+\textbf{Early Stopping Criterion.} Training terminates when the composite validation score $S_{\text{val}} = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$ fails to improve for $P = 15$ consecutive epochs. This composite criterion balances classification accuracy across both classes (Macro-F1) with ranking discrimination quality (AUC-ROC).
+
+\textbf{Gradient Stabilization.} To prevent exploding gradients during pheromone-attention co-training, gradient norms are clipped to $\|\nabla_\Theta\|_{\max} = 2.0$ at each optimization step.
+
+\section[Tools and Technology Stack]{Tools and Technology Stack}
+\label{sec:tools_tech}
+\label{sec:tooling}
+
+The entire architecture is implemented in Python utilizing native PyTorch tensor primitives. A key design principle was eliminating heavy, compiler-dependent external graph libraries (such as PyG or DGL) in favor of optimized sparse index arithmetic (\texttt{scatter\_add\_} and \texttt{scatter\_reduce\_}). This delivers three primary advantages:
+\begin{itemize}
+    \item \textbf{Vectorized Memory Scaling:} Node-level linear transformations $\mathbf{W}_r \mathbf{x}$ are computed prior to edge index gathering, avoiding the allocation of redundant high-dimensional tensors over millions of edges.
+    \item \textbf{Low-Cost CPU Execution:} Because gradient backpropagation is limited to parametric weights ($\mathbf{W}_r, \mathbf{W}_{\text{root}}, \mathbf{a}, \psi$), the non-parametric pheromone updates run via efficient in-place matrix primitives (\texttt{mul\_}, \texttt{add\_}), executing full 100-epoch training cycles on 45,000-node graphs on commodity multi-core CPUs in under 2 minutes.
+    \item \textbf{Dynamic Batch Modularity:} The decouple-and-scatter design allows the graph to receive streaming temporal batches without requiring re-allocation or graph re-indexing.
+\end{itemize}
+
+\section[Dynamic Streaming Pheromone Engine]{Dynamic Streaming Pheromone Engine}
+\label{sec:dynamic_engine}
+
+To evaluate ACO-GNN's resilience under realistic non-stationary conditions where new borrowers and transactions arrive incrementally, we developed the \textbf{Dynamic Pheromone Engine} (\texttt{Dynamic}\allowbreak\texttt{PheromoneEngine}) for progressive graph streaming.
+
+\subsection{Edge-Level Pheromone Representation}
+Unlike the static \texttt{Vectorized}\allowbreak\texttt{ACO}\allowbreak\texttt{Engine} which stores node-level anomaly potentials $\mathbf{s} \in \mathbb{R}^N$ (Section~\ref{sec:aco_engine}), the dynamic engine maintains \textit{edge-level} pheromone trails $\boldsymbol{\tau} \in [\tau_{\min}, \tau_{\max}]^{|\mathcal{E}|}$. This finer-grained representation enables precise per-connection tracking as the graph topology evolves, at the cost of higher memory consumption---acceptable for streaming subgraphs which are smaller than the full static graph.
+
+\subsection{Cold-Start Edge Initialization and Graph Expansion}
+When the graph topology expands from $|\mathcal{E}^{(t-1)}|$ to $|\mathcal{E}^{(t)}|$ edges at streaming step $t$:
+\begin{enumerate}
+    \item Existing trails undergo monotonic evaporation: $\tau_{ij} \leftarrow (1 - \rho) \cdot \tau_{ij}$ for all prior edges.
+    \item Newly arrived edges are initialized with neutral cold-start baselines: $\tau_{ij}^{\text{new}} = \tau_0 = 1.0$.
+\end{enumerate}
+This guarantees that historical structural evidence persists across topology changes while new connections begin from an uninformative prior.
+
+\subsection{Three-Way Delayed Ground-Truth Feedback}
+After model predictions are recorded at each streaming step, ground-truth labels are revealed with a configurable investigation delay ($\delta$ steps). Upon label revelation, edges are categorized into three feedback classes:
+\begin{enumerate}
+    \item \textbf{Confirmed Fraud Ring Edges} ($y_i = 1 \land y_j = 1$): Receive additive reinforcement $\Delta \tau = +4.0$, amplifying the pheromone signal for syndicate detection.
+    \item \textbf{Confirmed Benign Homophily Edges} ($y_i = 0 \land y_j = 0$): Receive moderate reinforcement $\Delta \tau = +1.0$ (ablation-toggleable), stabilizing benign topology.
+    \item \textbf{Confirmed Camouflage Edges} ($y_i \neq y_j$): Undergo \textit{active multiplicative penalization}: $\tau_{ij} \leftarrow 0.85 \cdot \tau_{ij}$, accelerating dissolution beyond passive evaporation.
+\end{enumerate}
+
+\subsection{Progressive Streaming Evaluation Protocol}
+To partition benchmark datasets into streaming-compatible segments, we implement a \textbf{32/8/30/30 stratified split protocol}:
+\begin{itemize}
+    \item \textbf{Train (32\%)}: Base model representation learning.
+    \item \textbf{Validation (8\%)}: Hyperparameter tuning and checkpoint selection.
+    \item \textbf{Static Test (30\%)}: Untouched evaluation (verifies base model quality).
+    \item \textbf{Simulation (30\%)}: Partitioned into $K = 5$ progressive batches, streamed sequentially.
+\end{itemize}
+For synthetic lending graphs with explicit timestamps, chronological partitioning is used instead (40/10/20/30 temporal split). The \texttt{ProgressiveGraphStreamer} enforces strict zero-leakage: at step $k$, only labels from prior steps are available for pheromone feedback.

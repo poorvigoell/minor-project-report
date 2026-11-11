@@ -1,0 +1,141 @@
+\chapter{Introduction}
+\label{ch:intro}
+
+Financial fraud detection in credit issuance, digital payment gateways, and peer-to-peer (P2P) lending has emerged as one of the most pressing cybersecurity and economic imperatives in contemporary financial technology. This chapter introduces the overarching context of modern organized fraud rings, defines the formal mathematical problem formulation on heterogeneous graphs, articulates the explicit project objectives, outlines the core system methodology, documents operational constraints, and provides a structured roadmap of this report.
+
+\section[Introduction]{\textbf{Introduction}}
+\label{sec:background_context}
+
+Over the past decade, the rapid digitization of retail banking infrastructure, mobile micro-lending platforms, and decentralized financial services has fundamentally democratized credit access. Modern consumers and micro-enterprises can secure automated lending approvals within seconds via algorithmic underwriting engines. However, this convenience has catalyzed a parallel, highly structured metamorphosis in financial crime:
+\begin{itemize}
+    \item \textbf{Transition from Opportunistic to Syndicated Fraud:} Fraudulent activity is no longer predominantly characterized by isolated, independent bad actors falsifying individual employment documents. Rather, modern cyber-criminals operate as sophisticated, syndicated \textbf{fraud rings} that orchestrate coordinated loan defaults, synthetic identity fabrication, and circular fund routing.
+    \item \textbf{Exploitation of Underwriting Latency:} Fraud syndicates exploit the batch-processing intervals and asynchronous settlement windows of credit bureaus by executing simultaneous loan applications across multiple lending apps before any individual default is registered centrally.
+    \item \textbf{Dispersed Collusion:} Syndicate members systematically disperse coordinating entities across multi-hop organizational topologies—sharing physical hardware devices (IMEI numbers, MAC addresses), cellular base stations, IP address subnets, emergency guarantor phone numbers, or mule payment accounts.
+\end{itemize}
+
+\subsection{The Failure of Traditional Machine Learning in Relational Fraud}
+Conventional commercial risk assessment systems rely heavily on tabular credit scorecards, rules-based heuristic filters, and standard machine learning classifiers, such as Logistic Regression, Random Forests, and Gradient Boosted Decision Trees (e.g., XGBoost, LightGBM). While these models perform proficiently when evaluating isolated entity attributes—such as declared annual income, credit bureau score, debt-to-income ratio, age, and employment tenure—they suffer from an intrinsic structural defect:
+\begin{quote}
+    \textit{Tabular feature vectors treat each loan applicant as an independent and identically distributed (i.i.d.) sample, completely discarding the topological connectivity between entities.}
+\end{quote}
+In sophisticated credit fraud rings, individual member applicants deliberately maintain spotless or synthetic credit profiles that appear completely benign under tabular scrutiny. The true signature of fraud does not reside within the node-level attribute vector $x_i \in \mathbb{R}^D$; rather, it is encoded within the \textbf{relational topology} $\mathcal{E}$ connecting multiple entities across disparate interaction channels. When financial transactions, shared physical assets, and social references are structured as a graph, these collusive dependencies become explicitly observable.
+
+\section[Motivation]{\textbf{Motivation}}
+\label{sec:motivation}
+
+Graph Neural Networks (GNNs) \cite{kipf2017semi, velivckovic2018graph, hamilton2017inductive} have naturally emerged as the state-of-the-art paradigm for learning over non-Euclidean network topologies. By recursively aggregating localized feature representations across multi-hop neighborhoods, GNNs generate node embeddings that fuse intrinsic attributes with structural network context. Nevertheless, directly deploying standard GNNs to real-world financial fraud graphs encounters three fundamental bottlenecks:
+
+\subsection{Adversarial Graph Camouflage}
+Fraud syndicates are acutely cognizant of graph-based anomaly detection systems. To evade neighborhood clustering algorithms, fraudsters employ deliberate \textbf{graph camouflage}:
+\begin{itemize}
+    \item \textbf{Feature Camouflage:} Fraudsters inject legitimate behavioral noise into their activity logs (e.g., browsing standard e-commerce goods, executing small legitimate utility bill payments, or fabricating plausible demographic data).
+    \item \textbf{Topological Camouflage:} Fraudulent nodes intentionally establish connections to reputable, high-degree benign nodes (e.g., listing legitimate institutions as reference contacts or transacting with high-volume legitimate merchants).
+\end{itemize}
+Standard Graph Convolutional Networks (GCN) apply uniform mean-pooling aggregation, while Graph Attention Networks (GAT) weight neighbors based strictly on instantaneous attribute similarity:
+\begin{equation}
+    \alpha_{ij} = \frac{\exp\left(\text{LeakyReLU}\left(a^T [W h_i \parallel W h_j]\right)\right)}{\sum_{k \in \mathcal{N}_i} \exp\left(\text{LeakyReLU}\left(a^T [W h_i \parallel W h_k]\right)\right)}
+\end{equation}
+When a fraudulent entity successfully disguises its features, $\alpha_{ij}$ assigns high attention weights to deceptive camouflage edges. As neighborhood information propagates over multiple layers, benign and fraudulent representations blend together, causing catastrophic embedding over-smoothing and misclassification.
+
+\subsection{Absence of Persistent Structural Memory}
+Existing fraud-specific GNN architectures—such as CARE-GNN \cite{dou2020enhancing}, PC-GNN \cite{liu2021pick}, and BWGNN \cite{tang2021rethinking}—attempt to counteract camouflage via localized Reinforcement Learning (RL) policies or spectral filtering. However, these architectures operate as \textit{memoryless systems}:
+\begin{itemize}
+    \item Edge weights and attention distributions are recomputed from scratch during every forward pass based entirely on current layer representations.
+    \item The model maintains zero cumulative historical memory tracking which structural paths consistently correlate with confirmed defaults across training epochs.
+    \item When evaluated on deep, multi-hop fraud rings (spanning 3 to 6 hops), greedy single-hop neighbor pruning frequently severs crucial connecting edges, permanently blinding the network to broader syndicate topologies.
+\end{itemize}
+
+\subsection{Inspiration from Natural Swarm Intelligence (Stigmergy)}
+To resolve the memoryless dilemma, this project draws inspiration from the biological phenomenon of \textbf{stigmergy} in Ant Colony Optimization (ACO) \cite{dorigo1996ant, dorigo2004ant}. In biological systems, individual ants possess very limited cognitive processing capability, yet the collective colony solves complex global shortest-path optimization problems in noisy physical terrains. They accomplish this by depositing volatile chemical secretions called \textbf{pheromones} along traversed trails:
+\begin{itemize}
+    \item Paths that successfully lead to food sources receive cumulative pheromone reinforcement from returning ants.
+    \item Misleading, dead-end, or noisy exploratory paths receive no reinforcement and gradually fade due to environmental \textbf{pheromone evaporation}.
+\end{itemize}
+If we conceptualize message-passing in a GNN as a traversal process across a heterogeneous transaction graph, artificial pheromone trails ($\tau_{ij}$) can serve as an \textbf{inductive persistent structural memory}. High-risk collusive edges connecting suspected fraudsters receive reinforcement, while deceptive camouflage edges naturally evaporate. Blending this persistent stigmergic prior with local feature attention provides a principled mechanism to isolate fraud rings while suppressing adversarial camouflage.
+
+\section[Problem statement]{\textbf{Problem statement}}
+\label{sec:problem_statement}
+
+Let a heterogeneous multi-relational credit lending or transaction network be formally represented as an attributed directed graph:
+\begin{equation}
+    \mathcal{G} = (\mathcal{V}, \mathcal{E}, \mathcal{R}, \mathcal{X})
+\end{equation}
+where $\mathcal{V} = \{v_1, v_2, \dots, v_N\}$ is the set of $N$ entities (e.g., loan applicants, registered user accounts, or financial transactions), $\mathcal{E} \subseteq \mathcal{V} \times \mathcal{V}$ is the global set of relational edges, $\mathcal{R} = \{r_1, r_2, \dots, r_M\}$ is the set of $M$ distinct heterogeneous relation types (e.g., shared device ID, shared bank account, emergency contact link), and $\mathcal{X} \in \mathbb{R}^{N \times D}$ denotes the node feature matrix where each vector $x_i \in \mathbb{R}^D$ represents the $D$-dimensional attribute profile of entity $v_i$.
+
+Each entity $v_i \in \mathcal{V}$ is associated with a ground-truth binary label $y_i \in \{0, 1\}$, where $y_i = 1$ denotes a confirmed fraudulent actor or default and $y_i = 0$ denotes a confirmed legitimate borrower. Given a partially labeled training subset $\mathcal{V}_{\text{train}} \subset \mathcal{V}$ with observed labels $\mathcal{Y}_{\text{train}}$, the primary research problem is to learn an inductive mapping function $f: (\mathcal{G}, \mathcal{X}) \rightarrow \hat{\mathcal{Y}} \in [0, 1]^N$ that accurately predicts the posterior fraud probability $\hat{p}_i = P(y_i = 1 \mid \mathcal{G}, \mathcal{X})$ for all unobserved test entities $v_i \in \mathcal{V}_{\text{test}}$, subject to three severe real-world operational challenges:
+\begin{enumerate}
+    \item \textbf{Extreme Class Imbalance:} Fraudulent entities represent a small minority (typically 5\%--15\% of applicants, $|\mathcal{V}_{\text{fraud}}| \ll |\mathcal{V}_{\text{benign}}|$). Standard cross-entropy gradients are dominated by benign majority samples.
+    \item \textbf{Adversarial Topological Camouflage:} Fraud nodes connect to legitimate high-degree nodes with camouflage probability $p_{\text{cam}}$, diluting local neighborhood homophily and fooling standard attention.
+    \item \textbf{Multi-Hop Syndicate Dispersion:} Fraudulent rings coordinate across relational paths of length $k \in \{3, 4, 5\}$, requiring deep message aggregation without inducing catastrophic over-smoothing.
+\end{enumerate}
+
+\section[Objectives]{\textbf{Objectives}}
+\label{sec:objectives}
+
+The objectives of the project are:
+\begin{enumerate}
+    \item \textbf{To reproduce and rigorously validate} the benchmark performance of state-of-the-art fraud detection GNNs (specifically CARE-GNN \cite{dou2020enhancing} as reviewed in the Frontiers of Computer Science survey by Cheng et al., 2025 \cite{cheng2025graph}) on established multi-relational benchmarks (YelpChi and Amazon), verifying baseline metrics.
+    \item \textbf{To design and mathematically formulate} a novel \textbf{ACO-GNN} architecture that embeds continuous stigmergic pheromone dynamics ($\tau_{ij}$) directly into multi-relational graph convolution layers, blending local feature attention with global persistent structural memory via an adaptive gating coefficient ($\lambda$).
+    \item \textbf{To benchmark and empirically evaluate} the proposed ACO-GNN model against baseline algorithms across real-world fraud benchmarks and synthetic lending topologies, systematically evaluating Macro-F1, Illicit-F1, and AUC-ROC.
+    \item \textbf{To conduct adversarial camouflage stress tests} by systematically injecting 0\% to 50\% synthetic camouflage noise into transaction subgraphs, empirically verifying that stigmergic pheromone evaporation functions as an autonomous, self-cleansing edge filter.
+\end{enumerate}
+
+\section[Brief Methodology of the project]{\textbf{Brief Methodology of the project}}
+\label{sec:brief_methodology}
+
+The end-to-end operational pipeline of the proposed ACO-GNN framework comprises four interconnected functional stages, summarized in Figure~\ref{fig:methodology_flow}.
+
+\begin{figure}[htb]
+\centering
+\begin{tcolorbox}[sharp corners, boxrule=0.8pt, colback=white, colframe=black, width=\textwidth]
+\centering
+\textbf{\large Operational Pipeline of the Proposed ACO-GNN Framework}\\[0.3cm]
+
+\textbf{Stage 1: Graph Ingestion \& Decomposition}\\
+$\mathcal{G} = (\mathcal{V}, \mathcal{E}, \mathcal{R})$ $\longrightarrow$ Sparse Adjacency Matrices $\{A^{(r)}\}_{r=1}^M$ + Row-Sum Normalized Features $\tilde{\mathcal{X}}$\\[0.25cm]
+$\boldsymbol{\Downarrow}$\\[0.25cm]
+
+\textbf{Stage 2: Stigmergic Pheromone Engine}\\
+Maintain Edge Pheromones $\tau^{(r)} \in [\tau_{\min}, \tau_{\max}]$: Evaporate $\tau \leftarrow (1-\rho)\tau$ \quad $\&$ \quad Reinforce $\Delta\tau = Q \cdot \hat{p}_i \hat{p}_j$\\[0.25cm]
+$\boldsymbol{\Downarrow}$\\[0.25cm]
+
+\textbf{Stage 3: Dual-Attention Blended Aggregation}\\
+Compute Blended Weights: $\omega_{ij}^{(r)} = \lambda \cdot \alpha_{ij}^{(r)} + (1 - \lambda) \cdot \hat{\tau}_{ij}^{(r)}$ $\longrightarrow$ Multi-Relational Convolution + LayerNorm\\[0.25cm]
+$\boldsymbol{\Downarrow}$\\[0.25cm]
+
+\textbf{Stage 4: Focal Loss Classification \& Decision Calibration}\\
+Focal Loss ($\alpha=0.75, \gamma=2.0$) $\longrightarrow$ Validation-Calibrated Decision Threshold $\theta^* \longrightarrow$ Fraud Predictions $\hat{y}_i$
+\end{tcolorbox}
+\caption{End-to-end operational data flow of the proposed ACO-GNN framework.}
+\label{fig:methodology_flow}
+\end{figure}
+
+The functional operation of each stage is summarized as follows:
+\begin{enumerate}
+    \item \textbf{Stage 1 (Graph Ingestion and Decomposition):} Ingest raw multi-relational graphs, decompose heterogeneous connections into decoupled sparse adjacency matrices per relation $r \in \mathcal{R}$, and perform row-sum feature standardization $\tilde{X} = D_{\text{row}}^{-1}\mathcal{X}$.
+    \item \textbf{Stage 2 (Stigmergic Pheromone Engine):} Initialize edge pheromone intensities $\tau_{ij}^{(r)} = 1.0$. At each training epoch, update pheromone values via exponential evaporation and predictive reinforcement, followed by target-wise softmax scaling into structural priors $\hat{\tau}_{ij}^{(r)}$.
+    \item \textbf{Stage 3 (Dual-Attention Blended Aggregation):} In each GNN message-passing layer, compute blended aggregation coefficients by dynamically gating GAT attention $\alpha_{ij}^{(r)}$ with normalized pheromone priors $\hat{\tau}_{ij}^{(r)}$ via a learnable gate $\lambda \in [0, 1]$.
+    \item \textbf{Stage 4 (Loss Optimization and Validation Calibration):} Optimize model parameters using Focal Loss ($\alpha=0.75, \gamma=2.0$) to suppress gradients from well-classified benign majority entities, followed by validation calibration of the decision cutoff $\theta^*$.
+\end{enumerate}
+
+\section[Assumptions made / Constraints of the project]{\textbf{Assumptions made / Constraints of the project}}
+\label{sec:constraints}
+
+To guarantee experimental reproducibility and adhere to rigorous academic standards, this project operates under the following formal assumptions and boundaries:
+\begin{enumerate}
+    \item \textbf{Hardware Execution Boundary:} All computational implementations, feature extraction pipelines, baseline reproductions, and multi-seed evaluations are engineered to execute on commodity multi-core CPU workstations without requiring specialized multi-GPU cluster infrastructure.
+    \item \textbf{Graph Heterogeneity Assumption:} Datasets are assumed to contain either explicit multi-typed edges (e.g., shared user, shared item, shared device) or raw transaction metadata from which multi-relational meta-paths can be constructed.
+    \item \textbf{Strict Anti-Leakage Protocol:} Ground-truth test labels $\mathcal{Y}_{\text{test}}$ remain strictly quarantined during feature normalization, pheromone initialization, model training, and threshold calibration.
+\end{enumerate}
+
+\section[Organization of the report]{\textbf{Organization of the report}}
+\label{sec:organization}
+
+This report is organized into five subsequent chapters:
+\begin{itemize}
+    \item \textbf{Chapter 2 (Literature Review):} Surveys foundational (2020--2021) and modern (2022--2026) fraud GNNs, reviews ant colony optimization in deep learning, and establishes a 12-model comparative taxonomy matrix identifying key research gaps.
+    \item \textbf{Chapter 3 (System Design and Methodology):} Formulates the mathematical architecture of ACO-GNN, detailing the vectorized Stigmergic Pheromone Engine, dual-attention message passing, and Focal Loss.
+    \item \textbf{Chapter 4 (Implementation and Development):} Documents the modular software design, computational optimizations for large-scale graphs, and the verification of the CARE-GNN base paper reproduction.
+    \item \textbf{Chapter 5 (Results and Discussions):} Analyzes empirical findings across YelpChi, Amazon, and Synthetic graphs, detailing multi-seed significance, camouflage stress tests, ablation studies, and homophily diagnostics.
+    \item \textbf{Chapter 6 (Conclusion and Future Scope):} Summarizes the core research findings, critically documents existing system limitations, delineates concrete future research trajectories, and outlines key learning outcomes.
+\end{itemize}

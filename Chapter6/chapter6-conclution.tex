@@ -1,0 +1,65 @@
+\chapter{Conclusion and Future Scope}
+\label{ch:conclusion}
+
+This chapter concludes the report by summarizing the key research achievements of the project, providing a critical evaluation of existing technical limitations, outlining concrete directions for future research, and articulating the primary learning outcomes attained during this work.
+
+\section[Summary of Achievements]{\textbf{Summary of Achievements}}
+\label{sec:achievements_summary}
+
+This minor project has formulated, implemented, and validated \textbf{ACO-GNN}, a bio-inspired Graph Neural Network architecture that incorporates Ant Colony Optimization stigmergic principles directly into neighborhood aggregation for fraud detection. The achievements are summarized by individual contributor roles as follows:
+
+\begin{itemize}
+    \item \textbf{Theoretical Formulation of Stigmergic GNN Aggregation (Poorvi):} Formulated the novel mathematical integration of artificial pheromones into graph neural network message-passing. Designed the learnable convex dual-attention blending mechanism ($\lambda \alpha_{ij} + (1-\lambda)\hat{\tau}_{ij}$) that unifies parametric feature self-attention with persistent stigmergic memory, establishing the edge trail evaporation and EMA risk reinforcement formulations that combat adversarial camouflage.
+    \item \textbf{Engineering Optimizations and Benchmark Validation (Sanya):} \textit{[To be finalized by Sanya: Engineered vectorized CPU adaptations for large graphs, executed multi-seed benchmark evaluations, and validated reproduction of the CARE-GNN baseline.]}
+    \item \textbf{Literature Review and Camouflage Robustness (Saniya):} A comprehensive survey across foundational and modern 2025--2026 journal publications identified the absence of persistent stigmergic memory in graph anomaly detection. Under adversarial camouflage stress testing (0\%--50\% noise), the framework demonstrated superior resilience ($F_1 > 0.76$) compared to standard GAT ($F_1 \rightarrow 0.13$), confirming that pheromone evaporation functions as an autonomous filter against deceptive graph camouflage.
+\end{itemize}
+
+\section[Limitations of the Current Work]{\textbf{Limitations of the Current Work [Written by Saniya]}}
+\label{sec:limitations}
+
+While ACO-GNN demonstrates significant gains on multi-relational benchmarks, scientific rigor demands transparent documentation of its existing limitations:
+
+\begin{enumerate}
+    \item \textbf{Sensitivity to Underlying Relational Homophily:}
+    The efficacy of stigmergic reinforcement relies on positive homophily along confirmed relation types. On YelpChi's $R\text{-}U\text{-}R$ relation, homophily is approximately 91\%, enabling pheromones to reinforce true fraud clusters effectively. However, on Amazon's $U\text{-}S\text{-}U$ relation, homophily drops to 5\%--17\%, introducing noisy reinforcement that requires strict regularization.
+    \item \textbf{Computational Overhead on Extremely Dense Relations:}
+    Maintaining dynamic pheromone vectors $\tau \in \mathbb{R}^{|\mathcal{E}|}$ incurs $\mathcal{O}(|\mathcal{E}|)$ memory complexity. While substantially more efficient than generative graph structure learning ($\mathcal{O}(N^2)$), running full stigmergic updates on relations with millions of edges (e.g., Amazon $net\_usu$ with 7.13M edges) requires careful memory chunking when executed on standard CPU hardware.
+    \item \textbf{Absence of Real-World Physical Timestamps in Benchmarks:}
+    Standard fraud benchmarks (YelpChi and Amazon) lack continuous physical transaction timestamps in their public \texttt{.mat} releases. Consequently, temporal streaming simulations on these datasets must rely on controlled incremental batching rather than true historical calendar progression.
+    \item \textbf{Scope of Baseline Coverage:}
+    While benchmarked against CARE-GNN, GAT, GCN, and tree baselines, direct empirical comparisons against very recent 2024--2026 architectures (such as SEC-GFD and DGA-GNN) remain pending.
+\end{enumerate}
+
+\section[Future Scope]{\textbf{Future Scope [Written by Saniya]}}
+\label{sec:future_scope}
+
+To address these limitations, several promising directions for future research are identified:
+
+\begin{enumerate}
+    \item \textbf{Dynamic Relation-Specific Pheromone Gating:}
+    Rather than applying a shared blending coefficient across all relations, future iterations will introduce relation-specific gating logits:
+    \begin{equation}
+        \omega_{ij}^{(r)} = \sigma(\theta_r) \cdot \alpha_{ij}^{(r)} + (1 - \sigma(\theta_r)) \cdot \hat{\tau}_{ij}^{(r)}
+    \end{equation}
+    This will allow the model to autonomously downweight stigmergy on low-homophily relations while accentuating it on high-signal relations.
+    \item \textbf{Continuous Temporal Pheromone Decay on Streaming Graphs:}
+    Integrating genuine continuous-time decay kernels ($\tau_{ij}(t) = \tau_{ij}(t_0) \cdot e^{-\lambda_t(t - t_0)}$) will enable the framework to handle real-time streaming transactions on industrial-scale financial networks (such as DGraphFin).
+    \item \textbf{Multi-GPU Hardware Acceleration:}
+    Porting sparse tensor scatter-add operations to specialized CUDA kernels will accelerate training speeds by an estimated $10\times$--$20\times$, facilitating deployment on 100M+ transaction graphs.
+    \item \textbf{Pheromone Trails as Transparent Explainability Tools:}
+    Regulatory compliance in financial risk demands interpretable decision-making. Future work will investigate using accumulated edge pheromone intensities as post-hoc subgraphs for regulatory auditability and visual fraud ring forensics.
+    \item \textbf{Peer-Reviewed Publication Submission:}
+    The empirical and theoretical findings compiled in this report will be synthesized into a research manuscript targeted for submission to an IEEE/ACM conference or SCI-indexed journal.
+\end{enumerate}
+
+\section[Learning Outcomes of the Project]{\textbf{Learning Outcomes of the Project}}
+\label{sec:learning_outcomes}
+
+In accordance with university project guidelines, the execution of this minor project has achieved five core academic and technical learning outcomes:
+\begin{enumerate}
+    \item \textbf{Mastery of Graph Deep Learning Architectures:} Attained deep theoretical comprehension and practical implementation proficiency in Graph Neural Networks, heterogeneous meta-path modeling, and custom message-passing convolutions in PyTorch.
+    \item \textbf{Application of Swarm Intelligence to Security Domains:} Successfully bridged nature-inspired Ant Colony Optimization heuristics with deep neural representation learning to formulate an inductive structural memory.
+    \item \textbf{Handling Real-World Data Challenges:} Developed robust empirical solutions to address severe class imbalance, high structural noise, and adversarial camouflage in large-scale multi-relational graphs.
+    \item \textbf{Scientific Baseline Reproduction and Rigorous Benchmarking:} Mastered the discipline of authentic baseline reproduction, controlled experimental partitioning, multi-seed evaluation, and statistical significance analysis.
+    \item \textbf{Technical Research Synthesis and Academic Reporting:} Cultivated advanced research capabilities in literature survey synthesis, research gap formulation, academic writing, and publication-standard technical reporting in \LaTeX.
+\end{enumerate}

@@ -1,0 +1,107 @@
+\chapter{Key Implementation Code Listings}
+\label{app:code}
+
+This appendix provides key vectorized implementations of the Stigmergic Pheromone Engine and the dual-attention message-passing layer developed in this project.
+
+\section{Pheromone-Guided Message-Passing Convolution Layer}
+\begin{footnotesize}
+\begin{verbatim}
+class PheromoneGuidedConv(nn.Module):
+    """
+    Blends GAT feature attention with stigmergic pheromone priors.
+    """
+    def __init__(self, in_channels, out_channels, 
+                 num_relations=1, lambda_blend=0.5):
+        super().__init__()
+        self.w_root = nn.Linear(in_channels, out_channels, bias=True)
+        self.w_rel = nn.ModuleList([
+            nn.Linear(in_channels, out_channels, bias=False) 
+            for _ in range(num_relations)
+        ])
+        self.attn_src = nn.Parameter(torch.Tensor(1, out_channels))
+        self.attn_dst = nn.Parameter(torch.Tensor(1, out_channels))
+        self.lambda_param = nn.Parameter(torch.tensor(0.0))
+        self.leaky_relu = nn.LeakyReLU(0.2)
+
+    def forward(self, x, edge_index, edge_type, hat_tau):
+        num_nodes = x.size(0)
+        src, dst = edge_index[0], edge_index[1]
+        out = self.w_root(x)
+
+        for r in range(len(self.w_rel)):
+            mask = (edge_type == r)
+            if not mask.any(): 
+                continue
+            r_src, r_dst = src[mask], dst[mask]
+            r_tau = hat_tau[mask]
+
+            h_trans = self.w_rel[r](x)
+            attn_s = (h_trans * self.attn_src).sum(-1)
+            attn_d = (h_trans * self.attn_dst).sum(-1)
+            logits = self.leaky_relu(attn_s[r_src] + attn_d[r_dst])
+
+            # Destination-softmax attention
+            a_exp = torch.exp(logits - logits.max())
+            denom = torch.zeros(num_nodes, device=x.device)
+            denom.scatter_add_(0, r_dst, a_exp)
+            alpha = a_exp / denom[r_dst].clamp(min=1e-8)
+
+            # Dual-Attention Blending:
+            lam = torch.sigmoid(self.lambda_param)
+            weights = lam * alpha + (1.0 - lam) * r_tau
+            msg = h_trans[r_src] * weights.unsqueeze(-1)
+
+            agg = torch.zeros((num_nodes, h_trans.size(1)), 
+                              device=x.device)
+            agg.scatter_add_(0, r_dst.unsqueeze(-1).expand_as(msg), msg)
+            out = out + agg
+
+        return out
+\end{verbatim}
+\end{footnotesize}
+
+\section{Vectorized Pheromone Engine Update Formulation}
+\begin{footnotesize}
+\begin{verbatim}
+class VectorizedACOEngine:
+    """
+    Manages global edge pheromones, evaporation, and reinforcement.
+    """
+    def __init__(self, num_nodes, edge_index, 
+                 rho=0.15, q=1.0, tau_min=0.01, tau_max=10.0):
+        self.num_nodes = num_nodes
+        self.edge_index = edge_index
+        self.num_edges = edge_index.size(1)
+        self.rho = rho
+        self.q = q
+        self.tau_min = tau_min
+        self.tau_max = tau_max
+        self.tau = torch.ones(self.num_edges, dtype=torch.float32)
+
+    def step_epoch(self, node_probs, gt_labels=None, train_mask=None):
+        # 1. Exponential Evaporation
+        self.tau.mul_(1.0 - self.rho).clamp_(min=self.tau_min)
+
+        # 2. Predictive Reinforcement
+        src, dst = self.edge_index[0], self.edge_index[1]
+        joint_risk = node_probs[src] * node_probs[dst]
+        deposit = self.q * joint_risk
+
+        # Optional Ground-Truth Confirmation Bonus
+        if gt_labels is not None and train_mask is not None:
+            both_fraud = ((gt_labels[src] == 1) & 
+                          (gt_labels[dst] == 1) & 
+                          train_mask[src] & train_mask[dst])
+            deposit[both_fraud] += 2.0 * self.q
+
+        self.tau.add_(deposit).clamp_(max=self.tau_max)
+
+    def get_normalized_priors(self, temperature=1.0):
+        dst = self.edge_index[1]
+        exp_tau = torch.exp(self.tau / temperature)
+        denom = torch.zeros(self.num_nodes)
+        denom.scatter_add_(0, dst, exp_tau)
+        hat_tau = exp_tau / denom[dst].clamp(min=1e-8)
+        return hat_tau
+\end{verbatim}
+\end{footnotesize}
