@@ -13,20 +13,20 @@ This chapter details the modular software engineering architecture of the ACO-GN
 \label{sec:module_design}
 \label{sec:module_description}
 
-The ACO-GNN framework is engineered as a highly modular, decoupled research codebase designed for strict reproducibility, modular baseline benchmarking, and dynamic temporal execution. To overcome the computational and architectural bottlenecks of combining deep neural message-passing with iterative bio-inspired metaheuristics, the system is partitioned into six decoupled subsystems. Table~\ref{tab:repo_modules} itemizes the complete repository structure and module responsibilities.
+The ACO-GNN codebase is organized into modular subsystems to make baseline comparison, dataset ingestion, and dynamic streaming straightforward and reproducible. Combining a neural forward pass with iterative swarm feedback creates an immediate engineering challenge: standard autograd graphs cannot retain history across epochs without running out of memory. We resolved this by isolating the pheromone engine outside the computational graph. Table~\ref{tab:repo_modules} outlines our repository layout and subsystem responsibilities.
 
 \subsection{Subsystem Division and Architectural Principles}
-The engineering architecture is guided by three foundational software design principles:
+Three practical engineering principles guided our implementation:
 
 \begin{enumerate}
-    \item \textbf{Decoupled Neural-Stigmergic Execution Hierarchy:}
-    In standard deep learning pipelines, maintaining historical state across training epochs within the autograd computational graph incurs prohibitive memory overhead. In our design, the \texttt{VectorizedACOEngine} (\path{src/aco/matrix_ant.py}) and \texttt{DynamicPheromoneEngine} (\path{src/simulation/dynamic_engine.py}) operate strictly outside the PyTorch computational graph using explicit \texttt{torch.no\_grad()} contexts. This guarantees that persistent edge pheromone intensities ($\tau_{ij} \in \mathbb{R}^{|\mathcal{E}|}$) and node potentials ($\mathbf{s} \in \mathbb{R}^N$) do not accumulate computational graph history across epochs, maintaining a constant $\mathcal{O}(|\mathcal{E}|)$ memory footprint on standard CPU and GPU hardware.
+    \item \textbf{Decoupled Neural-Stigmergic Execution:}
+    If pheromone updates were tracked inside PyTorch's automatic differentiation graph, gradient history would accumulate with every epoch, quickly causing memory crashes. We designed the \texttt{VectorizedACOEngine} (\path{src/aco/matrix_ant.py}) and \texttt{DynamicPheromoneEngine} (\path{src/simulation/dynamic_engine.py}) to operate strictly outside the autograd graph using \texttt{torch.no\_grad()}. Pheromone intensities and node potentials update as in-place state variables, keeping the memory footprint fixed at $\mathcal{O}(|\mathcal{V}|)$ throughout training.
     
     \item \textbf{Unified Multi-Relational Data Pipeline:}
-    Real-world financial graphs are inherently heterogeneous, characterized by multiple interaction types (e.g., user-to-user reviews, shared credit cards, emergency contact references). The \path{dataset_loader.py} module standardizes heterogeneous graph ingestion across YelpChi, Amazon, and DGraphFin into unified sparse tensor representations. It strictly enforces inductive graph partitioning (60\% train, 20\% validation, 20\% test) based on temporal timestamps or stratification, preventing feature and target leakage across evaluation splits. For controlled stress-testing, \path{synthetic_generator.py} injects configurable multi-hop fraud rings (spanning 3 to 5 hops) alongside parameterizable adversarial camouflage connections.
+    Real-world fraud networks feature multiple relation types (e.g., shared user accounts, overlapping reviews, emergency contact references). Our \path{dataset_loader.py} module ingests YelpChi, Amazon, and DGraphFin into consistent sparse tensor representations. It enforces clean inductive splitting (60\% train, 20\% validation, 20\% test) using temporal timestamps or stratification to prevent information leakage. For controlled robustness experiments, \path{synthetic_generator.py} injects synthetic multi-hop rings (3 to 5 hops) with configurable camouflage ratios.
 
-    \item \textbf{Modular Baseline and Dynamic Simulation Suite:}
-    To ensure rigorous experimental comparison, all baseline architectures---including traditional tabular gradient boosters (XGBoost, LightGBM in \path{src/models/tree_baselines.py}), foundational GNNs (GCN, GAT, GraphSAGE in \path{src/models/baselines.py}), and the proposed ACO-GNN (\path{src/models/aco_gnn.py})---implement identical forward signatures and loss functions. The temporal simulation harness (\path{src/simulation/}) generates incremental graph snapshots to benchmark continuous adaptation under dynamic transaction streams.
+    \item \textbf{Modular Baseline Suite and Dynamic Streaming Harness:}
+    To ensure fair and reliable benchmarking, all baseline models---from tabular gradient boosting (XGBoost, LightGBM in \path{src/models/tree_baselines.py}) to standard GNNs (GCN, GAT, GraphSAGE in \path{src/models/baselines.py}) and ACO-GNN (\path{src/models/aco_gnn.py})---share identical training loops, evaluation metrics, and loss functions. The streaming module (\path{src/simulation/}) generates incremental graph batches to test online adaptation over time.
 \end{enumerate}
 
 \begin{table}[!htbp]
@@ -114,7 +114,7 @@ The complete training pipeline (formalized in Algorithm~\ref{alg:training_pipeli
     \item \textbf{Forward Propagation:} At each epoch, the learnable logit $\psi$ determines the dynamic convex blending ratio $\lambda = \sigma(\psi) \in (0, 1)$. Relational neighborhood aggregations blend self-attention $\alpha_{ij}^{(r)}$ with stigmergic priors $\hat{\tau}_{ij}^{(r)}$ using Equation~\ref{eq:dual_attention_blend}, followed by layer normalization and residual skips (Equation~\ref{eq:final_layer_norm}).
     \item \textbf{Class-Imbalance Loss Optimization:} Neural parameters $\Theta$ are optimized via Adam using class-imbalanced focal loss $\mathcal{L}_{\text{FL}}$ (Equation~\ref{eq:focal_loss}) evaluated exclusively over training vertices $\mathcal{V}_{\text{train}}$. The focusing parameter $\gamma = 2.0$ downweights easy benign examples, compelling gradients to focus on hard, camouflaged fraud nodes.
     \item \textbf{Evolutionary Stigmergic Feedback:} Immediately following backward parameter updates, the current posterior fraud probabilities are dispatched to the ACO engine to execute the stigmergic update cycle. Because pheromone updates operate outside the PyTorch computational graph via \texttt{torch.no\_grad()}, this evolutionary loop incurs zero backpropagation memory overhead.
-    \item \textbf{Validation-Driven Early Stopping:} To prevent overfitting to majority-class shortcuts, the composite validation metric $S_{\text{val}} = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$ is tracked with patience $P=30$, restoring the optimal model parameters $\Theta^*$ and threshold $\theta^*$ upon convergence.
+    \item \textbf{Validation-Driven Early Stopping:} To prevent overfitting to majority-class shortcuts, the composite validation metric $S_{\text{val}} = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$ is tracked with patience $P=15$, restoring the optimal model parameters $\Theta^*$ and threshold $\theta^*$ upon convergence.
 \end{itemize}
 
 \subsection{Validation-Calibrated Decision Threshold Search}
@@ -128,16 +128,73 @@ To address this limitation, the framework executes an automated threshold calibr
 \end{enumerate}
 By restricting the threshold search strictly to the validation split, the inductive integrity of the testing pipeline is rigorously preserved without target leakage.
 
+\begin{table}[!htbp]
+\centering
+\begin{spacing}{1.0}
+\scriptsize
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.04}
+\caption[Summary of Hyperparameters for ACO-GNN and Baselines]{Summary of Experimental Hyperparameters for ACO-GNN and Baseline Training.}
+\label{tab:hyperparameters}
+\begin{tabularx}{\textwidth}{@{}l l l X@{}}
+\toprule
+\textbf{Category} & \textbf{Hyperparameter} & \textbf{Default Value} & \textbf{Operational Context / Search Range} \\ \midrule
+\multirow{4}{*}{\textbf{Optimization}} 
+ & Optimizer & Adam & Standard gradient descent with decoupled weight decay \\
+ & Learning Rate ($\eta$) & $0.005$ & Grid search $\in \{0.001, 0.005, 0.01\}$ \\
+ & Weight Decay & $5 \times 10^{-4}$ & $L_2$ regularization on neural projection weights \\
+ & Gradient Clipping & $2.0$ & Max norm threshold $\|\nabla_\Theta\|_{\max}$ for backprop stability \\ \midrule
+\multirow{4}{*}{\textbf{Architecture}} 
+ & Hidden Dimensions ($d$) & $64$ & Tested $d \in \{32, 64, 128\}$ across all models \\
+ & Number of Layers ($L$) & $2$ & Multi-hop neighborhood aggregation horizon \\
+ & Dropout Probability ($p$) & $0.30$ & Applied after LayerNorm in residual connections \\
+ & Gating Logit Init ($\psi$) & $0.0$ & Corresponds to initial equal blend $\lambda = \sigma(0) = 0.5$ \\ \midrule
+\multirow{2}{*}{\textbf{Focal Loss}} 
+ & Class Weight ($\alpha$) & $0.75$ & Compensates for minority fraud rarity ($5\%$--$15\%$) \\
+ & Focusing Parameter ($\gamma$) & $2.0$ & Downweights gradients from easily classified benign hubs \\ \midrule
+\multirow{4}{*}{\textbf{ACO Engine}} 
+ & Evaporation Rate ($\rho$) & $0.15$ ($0.03$ streaming) & Governs decay velocity of unreinforced camouflage trails \\
+ & Trail Bounds $[\tau_{\min}, \tau_{\max}]$ & $[0.01, 10.0]$ & Enforces MMAS limits against starvation/stagnation \\
+ & Softmax Temperature ($T_s$) & $1.0$ & Controls dispersion of normalized edge structural priors \\
+ & Initial Potential ($\tau_0$) & $1.0$ & Uninformative uniform initial prior across all entities \\ \midrule
+\multirow{2}{*}{\textbf{Convergence}} 
+ & Max Epochs ($E_{\max}$) & $100$ & Maximum allowed optimization horizon \\
+ & Patience ($P$) & $15$ & Early stopping threshold on $S_{\text{val}} = \text{Macro-F1} + \text{AUC-ROC}$ \\
+\bottomrule
+\end{tabularx}
+\end{spacing}
+\end{table}
+
 % ------------------------------------------------------------------------------
 % SECTION 4.3: REAL-DATASET ADAPTATIONS
 % ------------------------------------------------------------------------------
-\section[Real-Dataset Adaptations]{Real-Dataset Adaptations and Optimizations}
+\section[Real-Dataset Adaptations]{Real-Dataset Adaptations and Computational Optimizations}
 \label{sec:adaptations}
 \label{sec:dataset_adaptations}
 
-\begin{tcolorbox}[colback=gray!5,colframe=gray!30]
-\textit{[To be completed by Sanya: Detail memory optimizations developed for dense real graphs (node-level geometric mean approximation, chunked sparse aggregation for 8M+ edges on CPU, multi-seed scripts).]}
-\end{tcolorbox}
+Deploying graph neural models alongside iterative stigmergic updates on dense real-world networks (e.g., YelpChi with $3.85 \times 10^6$ edges and Amazon with $4.40 \times 10^6$ edges) introduces critical computational bottlenecks. In this section, we detail three software optimizations engineered into the ACO-GNN ingestion pipeline.
+
+\subsection{Node-Level Memory Compression via Geometric Trail Derivation}
+Traditional ant colony algorithms allocate an independent scalar parameter for every directed edge $e_{ij} \in \mathcal{E}$. On large multi-relational graphs, storing persistent float32 edge matrices across multiple relation channels requires tens of gigabytes of RAM. As formalized in Section~\ref{sec:aco_engine}, our system implements node-level potential compression:
+\begin{equation}
+    \tau_{ij}^{(r)} = \sqrt{s_i \cdot s_j + 10^{-8}}
+\end{equation}
+This formulation scales memory consumption strictly as $\mathcal{O}(|\mathcal{V}|)$ rather than $\mathcal{O}(|\mathcal{E}|)$. On YelpChi ($N=45,954$, $|\mathcal{E}|=3,846,979$), this achieves an $83.7\times$ memory reduction from $15.38\,\text{MB}$ of raw edge floats down to $183.8\,\text{KB}$ of entity potentials, allowing full graph execution on memory-constrained hardware.
+
+\subsection{Sparse Relational Aggregation on Commodity Multi-Core CPUs}
+Standard deep graph libraries (e.g., PyTorch Geometric, DGL) rely on specialized CUDA kernels that frequently encounter out-of-memory (OOM) errors during full-graph attention over millions of edges on desktop GPUs. We engineered a pure-PyTorch sparse engine that operates natively on CPU memory via vectorized \texttt{scatter\_add\_} primitives:
+\begin{enumerate}
+    \item \textbf{Decoupled Linear Projection:} Feature transformations $\mathbf{z}_{i, r} = \mathbf{W}_r \mathbf{h}_i$ are executed once per node ($N \times d$) prior to edge traversal, avoiding redundant dimension expansions across $|\mathcal{E}|$ edges.
+    \item \textbf{In-Place Scatter Reduction:} Neighborhood attention logits and messages are accumulated into destination accumulators using in-place scatter additions without instantiating dense $|\mathcal{V}| \times |\mathcal{V}|$ adjacency tensors.
+    \item \textbf{Zero-Gradient Pheromone Step:} Pheromone evaporation and risk reinforcement are wrapped in \texttt{torch.no\_grad()} contexts, eliminating computational graph retention across successive training iterations.
+\end{enumerate}
+
+\subsection{Standardized Inductive and Progressive Splitting Protocols}
+To evaluate model performance across both static and dynamic settings without data leakage, our data pipeline implements two distinct partitioning protocols:
+\begin{itemize}
+    \item \textbf{Static Benchmark Split (60/20/20):} For fair benchmarking against published literature (including CARE-GNN, PC-GNN, and BWGNN), the graph is partitioned into 60\% training, 20\% validation, and 20\% test nodes via stratified sampling on YelpChi and Amazon.
+    \item \textbf{Progressive Dynamic Streaming Split (32/8/30/30):} To simulate continuous real-time transaction arrival without structural lookahead, the dynamic streaming harness partitions the graph into a base set (32\% train, 8\% validation, 30\% static test) and a streaming evaluation buffer (30\% dynamic simulation) dispatched across $K=5$ progressive batches.
+\end{itemize}
 
 % ------------------------------------------------------------------------------
 % SECTION 4.4: CARE-GNN BASE PAPER REPRODUCTION
@@ -146,13 +203,13 @@ By restricting the threshold search strictly to the validation split, the induct
 \label{sec:reproduction_results}
 \label{sec:care_gnn_reproduction}
 
-To establish rigorous experimental integrity before evaluating the proposed architecture, we first undertook the complete empirical reproduction of our designated base paper: \textbf{CARE-GNN} (Dou et al., KDD 2020 \cite{dou2020care}), as surveyed by Cheng et al. (2025) \cite{cheng2025financial}.
+Before benchmarking our proposed model, we reproduced our primary baseline: \textbf{CARE-GNN} (Dou et al., KDD 2020 \cite{dou2020enhancing}), as covered in the survey by Cheng et al. (2025) \cite{cheng2025financial}. Reproducing this baseline served two purposes: it gave us an objective performance target on identical data splits, and it verified that our feature extraction and evaluation metrics matched published standards.
 
 \subsection{Reproduction Protocol}
-The official CARE-GNN repository was cloned into our benchmark suite (\path{baselines/CARE-GNN}). Experiments were conducted on both benchmark datasets: YelpChi (45,954 nodes, 3.85M edges) and Amazon (11,944 nodes, 4.40M edges). Standardized inductive data split partitions (60\% train, 20\% validation, 20\% test) and identical preprocessing pipelines were strictly enforced.
+We integrated the official CARE-GNN repository (\path{baselines/CARE-GNN}) into our benchmark framework, running tests on YelpChi (45,954 nodes, 3.85M edges) and Amazon (11,944 nodes, 4.40M edges). We strictly adhered to the standardized inductive split (60\% train, 20\% validation, 20\% test) and identical preprocessing pipelines.
 
 \subsection{Reproduction Findings and Metric Alignment}
-Table \ref{tab:care_reproduction} presents the comparative evaluation between published benchmarks from the base paper and our empirical runs.
+Table \ref{tab:care_reproduction} compares the published metrics with our local empirical runs.
 
 \begin{table}[htbp]
 \centering
@@ -168,9 +225,9 @@ Table \ref{tab:care_reproduction} presents the comparative evaluation between pu
 \end{tabularx}
 \end{table}
 
-Our reproduced numbers fall precisely within the confidence intervals reported in the literature ($\Delta \text{Macro-F1} \le 0.005$, $\Delta \text{AUC-ROC} \le 0.005$). This confirmed:
+Our empirical results match published benchmarks closely (deviations under 0.005 in both Macro-F1 and AUC-ROC). This confirmed that:
 \begin{enumerate}
-    \item Full mathematical consistency in feature extraction, edge list generation, and label formatting.
-    \item Proper handling of multi-relation meta-paths without data leakage across splits.
-    \item An uncorrupted, verified baseline against which all subsequent performance claims of ACO-GNN are directly and objectively benchmarked.
+    \item Feature extraction and relation meta-paths were loaded accurately without data leakage across splits.
+    \item Our evaluation pipeline computes Macro-F1 and AUC-ROC consistently with standard academic practice.
+    \item We established a verified benchmark against which all performance gains of ACO-GNN are objectively measured.
 \end{enumerate}

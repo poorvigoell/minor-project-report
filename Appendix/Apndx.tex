@@ -164,43 +164,52 @@ class PheromoneGuidedConv(nn.Module):
 \begin{verbatim}
 class VectorizedACOEngine:
     """
-    Manages global edge pheromones, evaporation, and reinforcement.
+    Manages node-level anomaly potentials s in [tau_min, tau_max]^N 
+    and dynamically derives edge-level structural priors via geometric mean.
     """
-    def __init__(self, num_nodes, edge_index, 
-                 rho=0.15, q=1.0, tau_min=0.01, tau_max=10.0):
+    def __init__(self, num_nodes, rho=0.15, q=1.0, tau_min=0.01, tau_max=10.0):
         self.num_nodes = num_nodes
-        self.edge_index = edge_index
-        self.num_edges = edge_index.size(1)
         self.rho = rho
         self.q = q
         self.tau_min = tau_min
         self.tau_max = tau_max
-        self.tau = torch.ones(self.num_edges, dtype=torch.float32)
+        self.pheromone_values = torch.ones(num_nodes, dtype=torch.float32)
 
-    def step_epoch(self, node_probs, gt_labels=None, train_mask=None):
-        # 1. Exponential Evaporation
-        self.tau.mul_(1.0 - self.rho).clamp_(min=self.tau_min)
+    def step_epoch(self, node_probs, edge_index, gt_labels=None, train_mask=None):
+        # 1. Exponential Evaporation on node potentials
+        self.pheromone_values.mul_(1.0 - self.rho).clamp_(min=self.tau_min)
 
-        # 2. Predictive Reinforcement
-        src, dst = self.edge_index[0], self.edge_index[1]
-        joint_risk = node_probs[src] * node_probs[dst]
-        deposit = self.q * joint_risk
-
-        # Optional Ground-Truth Confirmation Bonus
+        # 2. Risk Synthesis: incorporate ground-truth training labels
+        p_obs = node_probs.clone()
         if gt_labels is not None and train_mask is not None:
-            both_fraud = ((gt_labels[src] == 1) & 
-                          (gt_labels[dst] == 1) & 
-                          train_mask[src] & train_mask[dst])
-            deposit[both_fraud] += 2.0 * self.q
+            p_obs[train_mask] = gt_labels[train_mask].float()
 
-        self.tau.add_(deposit).clamp_(max=self.tau_max)
+        # 3. Edge-level Risk Co-occurrence via geometric mean
+        src, dst = edge_index[0], edge_index[1]
+        joint_risk = torch.sqrt(p_obs[src] * p_obs[dst] + 1e-8)
 
-    def get_normalized_priors(self, temperature=1.0):
-        dst = self.edge_index[1]
-        exp_tau = torch.exp(self.tau / temperature)
-        denom = torch.zeros(self.num_nodes)
-        denom.scatter_add_(0, dst, exp_tau)
+        # 4. Degree-normalized neighborhood consensus
+        ones = torch.ones_like(joint_risk)
+        deg = torch.zeros(self.num_nodes).scatter_add_(0, src, ones)
+        r_bar = torch.zeros(self.num_nodes).scatter_add_(0, src, joint_risk)
+        r_bar = r_bar / deg.clamp(min=1.0)
+
+        # 5. Convex target potential and momentum EMA update
+        risk_blend = 0.5 * p_obs + 0.5 * r_bar
+        target = self.tau_min + (self.tau_max - self.tau_min) * risk_blend
+        gamma_u = min(1.0, self.rho * self.q)
+        self.pheromone_values = ((1.0 - gamma_u) * self.pheromone_values 
+                                 + gamma_u * target)
+        self.pheromone_values.clamp_(self.tau_min, self.tau_max)
+
+    def get_normalized_priors(self, edge_index, temperature=1.0):
+        src, dst = edge_index[0], edge_index[1]
+        prod = self.pheromone_values[src] * self.pheromone_values[dst]
+        tau_ij = torch.sqrt(prod + 1e-8)
+        exp_tau = torch.exp(tau_ij / temperature)
+        denom = torch.zeros(self.num_nodes).scatter_add_(0, dst, exp_tau)
         hat_tau = exp_tau / denom[dst].clamp(min=1e-8)
         return hat_tau
 \end{verbatim}
 \end{footnotesize}
+
