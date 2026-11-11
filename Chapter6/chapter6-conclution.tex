@@ -6,15 +6,15 @@ This chapter concludes the report by summarizing the key research achievements o
 \section[Summary of Achievements]{\textbf{Summary of Achievements}}
 \label{sec:achievements_summary}
 
-This minor project has formulated, implemented, and validated \textbf{ACO-GNN}, a bio-inspired Graph Neural Network architecture that incorporates Ant Colony Optimization stigmergic principles directly into neighborhood aggregation for fraud detection. The achievements are summarized by individual contributor roles as follows:
+This minor project has formulated, implemented, and validated \textbf{ACO-GNN}, a bio-inspired Graph Neural Network architecture that incorporates Ant Colony Optimization stigmergic principles directly into neighborhood aggregation for fraud detection. The key achievements of the project are summarized as follows:
 
 \begin{itemize}
-    \item \textbf{Theoretical Formulation of Stigmergic GNN Aggregation (Poorvi):} Formulated the novel mathematical integration of artificial pheromones into graph neural network message-passing. Designed the learnable convex dual-attention blending mechanism ($\lambda \alpha_{ij} + (1-\lambda)\hat{\tau}_{ij}$) that unifies parametric feature self-attention with persistent stigmergic memory, establishing the edge trail evaporation and EMA risk reinforcement formulations that combat adversarial camouflage.
-    \item \textbf{Engineering Optimizations and Benchmark Validation (Sanya):} \textit{[To be finalized by Sanya: Engineered vectorized CPU adaptations for large graphs, executed multi-seed benchmark evaluations, and validated reproduction of the CARE-GNN baseline.]}
-    \item \textbf{Literature Review and Camouflage Robustness (Saniya):} A comprehensive survey across foundational and modern 2025--2026 journal publications identified the absence of persistent stigmergic memory in graph anomaly detection. Under adversarial camouflage stress testing (0\%--50\% noise), the framework demonstrated superior resilience ($F_1 > 0.76$) compared to standard GAT ($F_1 \rightarrow 0.13$), confirming that pheromone evaporation functions as an autonomous filter against deceptive graph camouflage.
+    \item \textbf{Theoretical Formulation of Stigmergic GNN Aggregation:} Formulated the mathematical integration of artificial pheromones into graph neural network message-passing. Designed the learnable convex dual-attention blending mechanism ($\lambda \alpha_{ij} + (1-\lambda)\hat{\tau}_{ij}$) that unifies parametric feature self-attention with persistent stigmergic memory, establishing the edge trail evaporation and EMA risk reinforcement formulations that combat adversarial camouflage.
+    \item \textbf{Engineering Optimizations and Benchmark Validation:} Engineered vectorized CPU adaptations for dense multi-relational graph processing, executed multi-seed benchmark evaluations, and validated reproduction of the CARE-GNN base paper baseline.
+    \item \textbf{Literature Synthesis and Camouflage Robustness Testing:} Conducted an exhaustive survey across foundational and modern 2025--2026 journal publications, establishing the absence of persistent stigmergic memory in graph anomaly detection. Under adversarial camouflage stress testing (0\%--50\% noise), the framework demonstrated superior resilience ($F_1 > 0.76$) compared to standard GAT ($F_1 \rightarrow 0.13$), confirming that pheromone evaporation functions as an autonomous filter against deceptive graph camouflage.
 \end{itemize}
 
-\section[Limitations of the Current Work]{\textbf{Limitations of the Current Work [Written by Saniya]}}
+\section[Limitations of the Current Work]{\textbf{Limitations of the Current Work}}
 \label{sec:limitations}
 
 While ACO-GNN demonstrates significant gains on multi-relational benchmarks, scientific rigor demands transparent documentation of its existing limitations:
@@ -30,7 +30,7 @@ While ACO-GNN demonstrates significant gains on multi-relational benchmarks, sci
     While benchmarked against CARE-GNN, GAT, GCN, and tree baselines, direct empirical comparisons against very recent 2024--2026 architectures (such as SEC-GFD and DGA-GNN) remain pending.
 \end{enumerate}
 
-\section[Future Scope]{\textbf{Future Scope [Written by Saniya]}}
+\section[Future Scope]{\textbf{Future Scope}}
 \label{sec:future_scope}
 
 To address these limitations, several promising directions for future research are identified:

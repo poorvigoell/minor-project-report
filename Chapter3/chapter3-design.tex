@@ -2,10 +2,7 @@
 \label{ch:design}
 \label{chap:methodology}
 
-\begin{tcolorbox}[colback=blue!5,colframe=blue!40,title=\textbf{Chapter 3 Attribution Notice}]
-\textbf{Author:} \textbf{Poorvi} \\
-\textit{This chapter details the theoretical system architecture, mathematical derivations, pheromone dynamics, dual-attention message-passing formulations, and the progressive dynamic streaming extension of the proposed ACO-GNN framework.}
-\end{tcolorbox}
+
 
 This chapter details the theoretical formulation and mathematical architecture of the proposed \textbf{Pheromone-Guided Graph Neural Network (ACO-GNN)}. Section \ref{sec:arch_overview} presents the end-to-end system topology and data flow. Section \ref{sec:graph_formulation} outlines heterogeneous financial network construction. Section \ref{sec:aco_engine} formalizes the vectorized stigmergic pheromone engine. Section \ref{sec:message_passing} formulates the dual-attention pheromone message-passing convolution. Section \ref{sec:training_objective} describes the focal loss objective, validation-calibrated decision strategy, and training stabilization. Section \ref{sec:tooling} details the computational framework, and Section \ref{sec:dynamic_engine} introduces the progressive dynamic streaming extension.
 
@@ -17,38 +14,46 @@ The design of ACO-GNN addresses the fundamental vulnerability of standard GNNs i
 
 \begin{figure}[htbp]
 \centering
-\resizebox{0.94\textwidth}{!}{%
+\resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
-    node distance=1.3cm and 1.8cm,
+    node distance=1.0cm and 1.4cm,
     font=\small\sffamily,
-    block/.style={rectangle, draw=blue!70, fill=blue!8, thick, rounded corners, minimum height=1.0cm, minimum width=2.8cm, align=center},
-    aco_block/.style={rectangle, draw=orange!80, fill=orange!10, thick, rounded corners, minimum height=1.0cm, minimum width=2.8cm, align=center},
-    gnn_block/.style={rectangle, draw=purple!80, fill=purple!10, thick, rounded corners, minimum height=1.0cm, minimum width=2.8cm, align=center},
-    loss_block/.style={rectangle, draw=red!70, fill=red!8, thick, rounded corners, minimum height=1.0cm, minimum width=2.8cm, align=center},
-    line/.style={draw=black!75, -{Latex[length=2.5mm]}, thick}
+    block/.style={rectangle, draw=blue!70, fill=blue!8, thick, rounded corners=5pt,
+                  minimum height=1.5cm, minimum width=3.4cm, align=center, text width=3.2cm},
+    aco/.style  ={rectangle, draw=orange!80, fill=orange!10, thick, rounded corners=5pt,
+                  minimum height=1.5cm, minimum width=3.4cm, align=center, text width=3.2cm},
+    gnn/.style  ={rectangle, draw=teal!70, fill=teal!8, thick, rounded corners=5pt,
+                  minimum height=1.5cm, minimum width=3.4cm, align=center, text width=3.2cm},
+    loss/.style ={rectangle, draw=red!70, fill=red!8, thick, rounded corners=5pt,
+                  minimum height=1.5cm, minimum width=3.4cm, align=center, text width=3.2cm},
+    arr/.style  ={draw=black!65, -{Latex[length=2.5mm]}, thick}
 ]
 
-    % Nodes
-    \node[block] (input) {Heterogeneous\\Lending Graph\\$\mathcal{G} = (\mathcal{V}, \mathcal{E}, \mathcal{R})$};
-    \node[aco_block, right=of input] (aco) {Vectorized ACO\\Stigmergy Engine\\$\tau_{ij} \in [\tau_{\min}, \tau_{\max}]$};
-    \node[gnn_block, right=of aco] (conv) {Pheromone-Guided\\Convolution Layer\\$\lambda \alpha_{ij} + (1-\lambda)\hat{\tau}_{ij}$};
-    \node[gnn_block, below=of conv] (mlp) {Classification MLP\\+ LayerNorm \& Skip\\$\hat{\mathbf{y}}_i \in [0, 1]^2$};
-    \node[loss_block, left=of mlp] (loss) {Focal Loss\\Optimization\\$\text{FL}(p_t) = -\alpha_t(1-p_t)^\gamma \log p_t$};
-    \node[aco_block, left=of loss] (update) {Pheromone Evaporation\\\& Risk Reinforcement\\$\tau \leftarrow (1-\rho)\tau + \Delta \tau$};
+%% ---- ROW 1 (top): left to right ----
+\node[block] (input) {Heterogeneous\\[2pt]Lending Graph\\[2pt]$\mathcal{G}{=}(\mathcal{V},\mathcal{E},\mathcal{R})$};
+\node[aco, right=of input] (aco) {Vectorized ACO\\[2pt]Stigmergy Engine\\[2pt]$\tau_{ij} \in [\tau_{\min}, \tau_{\max}]$};
+\node[gnn, right=of aco] (conv) {Pheromone-Guided\\[2pt]Convolution Layer\\[2pt]$\lambda\alpha_{ij} + (1{-}\lambda)\hat{\tau}_{ij}$};
+\node[gnn, right=of conv] (mlp) {Classification MLP\\[2pt]$+$ LayerNorm \& Skip\\[2pt]$\hat{\mathbf{y}}_i \in [0,1]^2$};
 
-    % Arrows
-    \path[line] (input) -- node[above] {Edge Lists} (aco);
-    \path[line] (aco) -- node[above] {$\hat{\tau}_{ij}$ Priors} (conv);
-    \path[line] (input) |- ([yshift=0.2cm]conv.west);
-    \path[line] (conv) -- node[right] {Embeddings $\mathbf{h}_i^{(L)}$} (mlp);
-    \path[line] (mlp) -- node[above] {Softmax Logits} (loss);
-    \path[line] (loss) -- node[above] {Gradients $\nabla_\theta$} (update);
-    \path[line] (update) -- node[left] {Refined Trails} (aco);
+%% ---- ROW 2 (bottom): return loop ----
+\node[loss, below=of mlp] (loss) {Focal Loss\\[2pt]Optimization\\[2pt]$\mathrm{FL}(p_t) = {-}\alpha_t(1{-}p_t)^\gamma \log p_t$};
+\node[aco,  below=of aco] (update) {Pheromone Evaporation\\[2pt]\& Risk Reinforcement\\[2pt]$\tau \leftarrow (1{-}\rho)\tau + \Delta\tau$};
 
-    % Container Box for iterative feedback
-    \begin{scope}[on background layer]
-        \node[draw=gray!50, dashed, fill=gray!3, rounded corners=8pt, fit=(aco)(conv)(mlp)(loss)(update), label=above:\textbf{Iterative Dual-Loop Learning Cycle}] {};
-    \end{scope}
+%% ---- Arrows ----
+\draw[arr] (input) -- node[above, font=\scriptsize\sffamily]{Edge Lists} (aco);
+\draw[arr] (aco)   -- node[above, font=\scriptsize\sffamily]{$\hat{\tau}_{ij}$ Priors} (conv);
+\draw[arr] (conv)  -- node[above, font=\scriptsize\sffamily]{Embeddings $\mathbf{h}_i^{(L)}$} (mlp);
+\draw[arr] (mlp)   -- node[right, font=\scriptsize\sffamily]{Softmax Logits} (loss);
+\draw[arr] (loss)  -- node[below, font=\scriptsize\sffamily]{Gradients $\nabla_\theta$} (update);
+\draw[arr] (update) -- node[left, font=\scriptsize\sffamily]{Refined Trails} (aco);
+
+%% ---- Dashed container ----
+\begin{scope}[on background layer]
+  \node[draw=gray!50, dashed, fill=gray!3, rounded corners=8pt,
+        inner sep=12pt,
+        fit=(aco)(conv)(mlp)(loss)(update),
+        label=above:\textbf{Iterative Dual-Loop Learning Cycle}] {};
+\end{scope}
 
 \end{tikzpicture}%
 }

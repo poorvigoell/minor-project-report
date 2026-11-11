@@ -2,21 +2,32 @@
 \label{ch:implement}
 \label{chap:implementation}
 
-\begin{tcolorbox}[colback=blue!5,colframe=blue!40,title=\textbf{Chapter 4 Attribution Notice}]
-\textbf{Contributors:} \textbf{Poorvi} (Sections 4.1, 4.2, 4.4) and \textbf{Sanya} (Section 4.3) \\
-\textit{This chapter details module architecture, algorithmic pseudocode, real-world dataset adaptations, and the empirical reproduction of the CARE-GNN base paper.}
-\end{tcolorbox}
+
 
 This chapter details the modular software engineering architecture of the ACO-GNN framework. Section \ref{sec:module_design} itemizes repository organization and subsystem division. Section \ref{sec:algorithms} presents formal algorithmic specifications for the stigmergic update cycle, training optimization loop, and decision threshold search. Section \ref{sec:adaptations} documents dataset adaptations and memory optimizations. Section \ref{sec:reproduction_results} details the empirical reproduction of the CARE-GNN base paper verifying the evaluation pipeline.
 
 % ------------------------------------------------------------------------------
-% SECTION 4.1: MODULE-WISE ARCHITECTURAL DESCRIPTION (Written by Poorvi)
+% SECTION 4.1: MODULE-WISE ARCHITECTURAL DESCRIPTION
 % ------------------------------------------------------------------------------
-\section[Software Architecture and Module Design]{Software Architecture and Module Design [Written by Poorvi]}
+\section[Software Architecture and Module Design]{Software Architecture and Module Design}
 \label{sec:module_design}
 \label{sec:module_description}
 
-The ACO-GNN repository is organized as a modular, extensible research codebase designed for reproducibility, modular baseline comparison, and dynamic streaming execution. Table \ref{tab:repo_modules} itemizes the primary modules authored within the project.
+The ACO-GNN framework is engineered as a highly modular, decoupled research codebase designed for strict reproducibility, modular baseline benchmarking, and dynamic temporal execution. To overcome the computational and architectural bottlenecks of combining deep neural message-passing with iterative bio-inspired metaheuristics, the system is partitioned into six decoupled subsystems. Table~\ref{tab:repo_modules} itemizes the complete repository structure and module responsibilities.
+
+\subsection{Subsystem Division and Architectural Principles}
+The engineering architecture is guided by three foundational software design principles:
+
+\begin{enumerate}
+    \item \textbf{Decoupled Neural-Stigmergic Execution Hierarchy:}
+    In standard deep learning pipelines, maintaining historical state across training epochs within the autograd computational graph incurs prohibitive memory overhead. In our design, the \texttt{VectorizedACOEngine} (\path{src/aco/matrix_ant.py}) and \texttt{DynamicPheromoneEngine} (\path{src/simulation/dynamic_engine.py}) operate strictly outside the PyTorch computational graph using explicit \texttt{torch.no_grad()} contexts. This guarantees that persistent edge pheromone intensities ($\tau_{ij} \in \mathbb{R}^{|\mathcal{E}|}$) and node potentials ($\mathbf{s} \in \mathbb{R}^N$) do not accumulate computational graph history across epochs, maintaining a constant $\mathcal{O}(|\mathcal{E}|)$ memory footprint on standard CPU and GPU hardware.
+    
+    \item \textbf{Unified Multi-Relational Data Pipeline:}
+    Real-world financial graphs are inherently heterogeneous, characterized by multiple interaction types (e.g., user-to-user reviews, shared credit cards, emergency contact references). The \texttt{dataset\_loader.py} module standardizes heterogeneous graph ingestion across YelpChi, Amazon, and DGraphFin into unified sparse tensor representations. It strictly enforces inductive graph partitioning (60\% train, 20\% validation, 20\% test) based on temporal timestamps or stratification, preventing feature and target leakage across evaluation splits. For controlled stress-testing, \texttt{synthetic_generator.py} injects configurable multi-hop fraud rings (spanning 3 to 5 hops) alongside parameterizable adversarial camouflage connections.
+
+    \item \textbf{Modular Baseline and Dynamic Simulation Suite:}
+    To ensure rigorous experimental comparison, all baseline architectures—including traditional tabular gradient boosters (XGBoost, LightGBM in \path{src/models/tree_baselines.py}), foundational GNNs (GCN, GAT, GraphSAGE in \path{src/models/baselines.py}), and the proposed ACO-GNN (\path{src/models/aco_gnn.py})—implement identical forward signatures and loss functions. The temporal simulation harness (\path{src/simulation/}) generates incremental graph snapshots to benchmark continuous adaptation under dynamic transaction streams.
+\end{enumerate}
 
 \begin{table}[htbp]
 \centering
@@ -52,12 +63,28 @@ The ACO-GNN repository is organized as a modular, extensible research codebase d
 \end{table}
 
 % ------------------------------------------------------------------------------
-% SECTION 4.2: KEY ALGORITHMS (Written by Poorvi)
+% SECTION 4.2: KEY ALGORITHMS
 % ------------------------------------------------------------------------------
-\section[Key Algorithms]{Key Algorithms [Written by Poorvi]}
+\section[Key Algorithms]{Key Algorithms}
 \label{sec:algorithms}
 
-This section details the operational logic of the ACO-GNN architecture through three formal algorithmic specifications: the Stigmergic Pheromone Update Cycle (Algorithm \ref{alg:aco_update}), the End-to-End Training Procedure (Algorithm \ref{alg:training_pipeline}), and the Validation Threshold Calibration Procedure (Algorithm \ref{alg:threshold_calibration}).
+The operational execution of the ACO-GNN framework is formalized through three foundational algorithms:
+\begin{enumerate}
+    \item \textbf{Stigmergic Pheromone Update Cycle (Algorithm~\ref{alg:aco_update}):} Governs how node and edge pheromone intensities are updated, evaporated, and normalized across epochs.
+    \item \textbf{Dual-Loop End-to-End Training Loop (Algorithm~\ref{alg:training_pipeline}):} Details the coordination between gradient-based backpropagation and evolutionary stigmergy.
+    \item \textbf{Validation Threshold Calibration Procedure (Algorithm~\ref{alg:threshold_calibration}):} Optimizes the decision threshold on validation data to address severe class imbalance.
+\end{enumerate}
+
+\subsection{Algorithmic Specification of Stigmergic Updates}
+Algorithm~\ref{alg:aco_update} specifies the mathematical steps executed by the ACO engine at the conclusion of each forward pass. The procedure begins by synthesizing an observed risk vector $\tilde{\mathbf{p}}$ that incorporates ground-truth supervision for labeled training vertices while utilizing predicted posterior probabilities for unobserved nodes (Step 1). 
+
+To identify collusive fraud rings without being misled by individual noisy features, Step 2 computes edge-level risk co-occurrence via the geometric mean:
+\begin{equation}
+    R_{ij} = \sqrt{\tilde{p}_i \cdot \tilde{p}_j + \epsilon}
+\end{equation}
+The geometric mean formulation acts as a natural structural filter: an edge receives high risk $R_{ij}$ only when \textit{both} incident vertices exhibit elevated fraud probabilities. If a fraudster connects to an innocent benign user (adversarial camouflage), the benign node's low posterior ($p_j \approx 0$) drives the product toward zero, suppressing false trail reinforcement. 
+
+Step 3 computes neighborhood consensus $\bar{R}_i$, damping localized variance. In Step 4, target potentials $T_i$ are smoothed via Exponential Moving Average (EMA) with deposit rate $\gamma_u$ and clamped within $[\tau_{\min}, \tau_{\max}]$, preventing trail explosion or starvation. Finally, Step 5 derives edge-level priors $\tau_{ij}$ and applies relation-specific softmax normalization with temperature $T_s$ to construct valid edge aggregation distributions $\hat{\tau}_{ij}$ for the subsequent message-passing pass.
 
 \begin{algorithm}[htbp]
 \caption{Stigmergic Pheromone Update Cycle}
@@ -90,6 +117,13 @@ This section details the operational logic of the ACO-GNN architecture through t
 \State \Return $\mathbf{s}'$, $\hat{\boldsymbol{\tau}}$
 \end{algorithmic}
 \end{algorithm}
+
+\subsection{Dual-Loop End-to-End Training and Optimization Procedure}
+Algorithm~\ref{alg:training_pipeline} details the interleaved optimization loop governing the ACO-GNN architecture. The training cycle couples continuous gradient-based parameter updates on neural weights $\Theta$ with non-differentiable evolutionary stigmergic updates on edge potentials.
+
+During the forward pass (Steps 2--5), the current gating logit $\psi$ determines the blending coefficient $\lambda = \sigma(\psi)$, producing layer representations $\mathbf{h}^{(l+1)}$ that fuse neural attention with stigmergic priors. Logits from the classifier MLP yield posterior minority fraud probabilities $\mathbf{p}$. Backpropagation (Steps 7--9) computes gradients exclusively from the focal loss $\mathcal{L}_{\text{FL}}$ evaluated over the training set $\mathcal{V}_{\text{train}}$, updating neural weights $\Theta$.
+
+Crucially, in Step 11, the updated posterior probabilities are dispatched to the ACO engine to execute Algorithm~\ref{alg:aco_update}, updating persistent structural memory $\mathbf{s}'$ and $\hat{\boldsymbol{\tau}}$. Unlike recurrent neural models or reinforcement learning controllers that require backpropagation through time or policy gradient rollouts, this evolutionary update requires zero gradient tracking. Validation monitoring (Steps 12--22) dynamically calibrates the classification threshold $\theta_{\text{val}}$ using Algorithm~\ref{alg:threshold_calibration} and triggers early stopping on the composite criterion $S_{\text{val}} = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$ to avoid overfitting.
 
 \begin{algorithm}[htbp]
 \caption{ACO-GNN End-to-End Training and Optimization Loop}
@@ -128,6 +162,11 @@ This section details the operational logic of the ACO-GNN architecture through t
 \end{algorithmic}
 \end{algorithm}
 
+\subsection{Validation-Calibrated Decision Threshold Search}
+In extreme class-imbalanced environments where fraudulent entities represent less than 5\% of total nodes (e.g., YelpChi and Amazon), evaluating predictions using the canonical decision threshold $\theta = 0.50$ introduces substantial bias toward the majority class. Under this default cutoff, models frequently achieve deceptively high overall accuracy while suffering near-zero recall on the minority illicit class.
+
+To overcome this, Algorithm~\ref{alg:threshold_calibration} executes an automated threshold calibration sweep at the end of each validation cycle. The algorithm evaluates candidate decision thresholds $\theta \in [0.05, 0.95]$ with step size $0.01$ over continuous validation probabilities $\mathbf{p}_{\text{val}}$, computing precision, recall, and illicit $F_1$ score for each candidate. The threshold $\theta^*$ maximizing validation $F_1$ is selected and subsequently frozen for final test set inference. Calibrating exclusively on the validation set guarantees that test set evaluations remain strictly inductive and unbiased.
+
 \begin{algorithm}[htbp]
 \caption{Validation-Calibrated Optimal Decision Threshold Search}
 \label{alg:threshold_calibration}
@@ -152,9 +191,9 @@ This section details the operational logic of the ACO-GNN architecture through t
 \end{algorithm}
 
 % ------------------------------------------------------------------------------
-% SECTION 4.3: REAL-DATASET ADAPTATIONS (Assigned to: Sanya)
+% SECTION 4.3: REAL-DATASET ADAPTATIONS
 % ------------------------------------------------------------------------------
-\section[Real-Dataset Adaptations]{Real-Dataset Adaptations and Optimizations [Assigned to: Sanya]}
+\section[Real-Dataset Adaptations]{Real-Dataset Adaptations and Optimizations}
 \label{sec:adaptations}
 \label{sec:dataset_adaptations}
 
@@ -163,9 +202,9 @@ This section details the operational logic of the ACO-GNN architecture through t
 \end{tcolorbox}
 
 % ------------------------------------------------------------------------------
-% SECTION 4.4: CARE-GNN BASE PAPER REPRODUCTION (Written by Poorvi)
+% SECTION 4.4: CARE-GNN BASE PAPER REPRODUCTION
 % ------------------------------------------------------------------------------
-\section[CARE-GNN Base Paper Reproduction]{CARE-GNN Base Paper Reproduction [Written by Poorvi]}
+\section[CARE-GNN Base Paper Reproduction]{CARE-GNN Base Paper Reproduction}
 \label{sec:reproduction_results}
 \label{sec:care_gnn_reproduction}
 

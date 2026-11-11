@@ -6,26 +6,26 @@
 %% Document settings (IGDTUW B.Tech Minor Project Specification)
 \title{Pheromone-Guided Graph Neural Networks for Adaptive Fraud Ring Detection in Dynamic Lending Networks}
 \subCode{B.Tech Minor Project}
-\Department[CSE]{Computer Science and Engineering}
-\academicYear{2024 -- 2026}
+\Department[ECE-AI]{Electronics and Communication Engineering (Artificial Intelligence)}
+\academicYear{2023 -- 2027}
 
 %%%%%%%%%%%%%%% Minor Project Flag %%%%%%%%%%%%%%%
 \MinorProject
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Student Details (SANIYA, POORVI, SANYA SAXENA)
-\stuNameA{SANIYA ARORA}
-\stuUSNA{Enrollment No.: 11501182023}
 \stuNameB{POORVI GOEL}
 \stuUSNB{Enrollment No.: 08901182024}
+\stuNameA{SANIYA ARORA}
+\stuUSNA{Enrollment No.: 11501182023}
 \stuNameC{SANYA SAXENA}
 \stuUSNC{Enrollment No.: 11801182025}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Guide Related commands
-\guideNameA{[Supervisor / Faculty Guide Name]}
-\guideDesignationA{[Designation]}
-\guideDeptA[ECE-AI]{Computer Science and Engineering}
+\guideNameA{Ms. Richa Yadav}
+\guideDesignationA{Assistant Professor}
+\guideDeptA[ECE-AI]{Electronics and Communication Engineering}
 \guideOrgA{IGDTUW, Delhi}
 
 %%%%%%%%%%%%%%%%% Esteemed Members %%%%%%%%%%%%%%%%%%
@@ -45,85 +45,175 @@
 \usepackage[style=ieee]{biblatex}
 \addbibresource{./AuxFiles/ProjectBib.bib}
 
+%% ============================================================
+%% Custom Title Page (RV-style layout adapted for IGDTUW)
+%% ============================================================
+\renewcommand*{\maketitle}{%
+\begin{titlepage}
+\thispagestyle{empty}
+
+% Border box
+\begin{tikzpicture}[remember picture, overlay]
+    \draw[line width=1.2pt]
+        ($(current page.north west) + (0.75in,-0.75in)$)
+        rectangle
+        ($(current page.south east) + (-0.75in,0.75in)$);
+\end{tikzpicture}
+
+\vspace*{-0.3cm}
+
+% ---- TOP: Logo + Institution name | tagline ----
+\noindent
+\begin{minipage}[t]{0.72\textwidth}
+    \raisebox{-0.7cm}{\includegraphics[width=1.8cm]{Figures/igdtuw_logo.png}}%
+    \hspace{0.35cm}%
+    \begin{minipage}[t]{0.78\textwidth}
+        \vspace{0.05cm}
+        {\small\bfseries Indira Gandhi Delhi Technical University for Women\par}
+        {\scriptsize Kashmere Gate, Delhi -- 110006, India\par}
+    \end{minipage}
+\end{minipage}%
+\hfill
+\begin{minipage}[t]{0.22\textwidth}
+    \raggedleft
+    {\small\itshape Go, change the world\par}
+\end{minipage}
+
+\vspace{0.4cm}
+\noindent\rule{\textwidth}{0.6pt}
+\vspace{1.6cm}
+
+% ---- TITLE ----
+\begin{center}
+    {\LARGE\bfseries Pheromone-Guided Graph Neural Networks for Adaptive\\[0.2cm]
+    Fraud Ring Detection in Dynamic Lending Networks\par}
+    \vspace{0.5cm}
+    {\large\itshape A Minor Project Report (B.Tech Minor Project)\par}
+    \vspace{0.65cm}
+    {\large\bfseries Submitted by,\par}
+    \vspace{0.5cm}
+\end{center}
+
+% ---- STUDENTS (name left, enrollment right) ----
+\begin{center}
+\begin{tabular*}{0.80\textwidth}{@{\extracolsep{\fill}} l r}
+    POORVI GOEL   & 08901182024 \\[0.3cm]
+    SANIYA ARORA  & 11501182023 \\[0.3cm]
+    SANYA SAXENA  & 11801182025 \\
+\end{tabular*}
+\end{center}
+
+\vspace{1.2cm}
+
+% ---- GUIDE ----
+\begin{center}
+    {\large\bfseries Under the guidance of\par}
+\end{center}
+\vspace{0.5cm}
+\noindent
+\begin{minipage}[t]{0.52\textwidth}
+    \textbf{Ms. Richa Yadav}\\[0.15cm]
+    Assistant Professor\\[0.1cm]
+    Dept.\ of ECE\\
+    IGDTUW, Delhi
+\end{minipage}
+
+\vfill
+
+% ---- BOTTOM: Fulfillment text ----
+\begin{center}
+    {\normalsize\bfseries In partial fulfillment of the requirements for the degree of\\[0.25cm]
+    Bachelor of Technology in\par}
+    \vspace{0.4cm}
+    {\Large\bfseries Electronics and Communication Engineering\\[0.1cm]
+    (Artificial Intelligence)\par}
+    \vspace{0.4cm}
+    {\large\bfseries 2023 -- 2027\par}
+\end{center}
+
+\thispagestyle{empty}
+\end{titlepage}
+}
+
 \begin{document}
-	\NoBgThispage	
+	\NoBgThispage
 	\maketitle
-	
+
 	\begin{spacing}{1.4}
 		% 1. Certificate (Guide & HoD, Principal removed per CR Nishtha)
 		\input{./CoverPages/Certificate}
-		
+
 		\newpage
 		% 2. Candidates' Declaration
 		\input{./CoverPages/Declaration}
-		
+
 		\newpage
 		% 3. Plagiarism Similarity Check Certificate (<15% Turnitin check)
 		\input{./CoverPages/PlagiarismCertificate}
-		
+
 		\newpage
 		% 4. Acknowledgements
 		\input{./CoverPages/Ack}
-		
+
 		\newpage
 		\pagenumbering{roman}
-		
+
 		% 5. Abstract
 		\chapter*{Abstract}
 		\input{./CoverPages/Abstract}
 	\end{spacing}
-	
+
 	\newpage
 	\pagestyle{fplain}
 	\begin{spacing}{1.4}
-		\tableofcontents	
+		\tableofcontents
 	\end{spacing}
-	
+
 	\newpage
 	\begin{spacing}{1.4}
 		\cleardoublepage
 		\addcontentsline{toc}{chapter}{\listfigurename}
-		\listoffigures	
+		\listoffigures
 	\end{spacing}
-	
+
 	\newpage
 	\begin{spacing}{1.4}
 		\cleardoublepage
 		\addcontentsline{toc}{chapter}{\listtablename}
-		\listoftables	
+		\listoftables
 	\end{spacing}
 
 	\newpage
 	\printglossary[type=\acronymtype, title= Abbreviations, toctitle=Abbreviations]
 	\newpage
 	\printglossary[type=symbolList, title= List of Symbols, toctitle=List of Symbols]
-	
+
 	\mainmatter
 	\pagestyle{mplain}
 	\glsresetall
 	\begin{spacing}{1.4}
-		% Chapter 1 (Assigned to: SANIYA)
+		% Chapter 1
 		\input{./Chapter1/chapter1-Intro}
-		
-		% Chapter 2 (Assigned to: SANIYA - 2.1 & 2.3; POORVI - 2.2)
+
+		% Chapter 2
 		\input{./Chapter2/chapter2-Funda}
-		
-		% Chapter 3 (Assigned to: POORVI)
+
+		% Chapter 3
 		\input{./Chapter3/chapter3-design}
-		
-		% Chapter 4 (Assigned to: POORVI & SANYA)
+
+		% Chapter 4
 		\input{./Chapter4/chapter4-implement}
-		
-		% Chapter 5 (Assigned to: SANYA)
+
+		% Chapter 5
 		\input{./Chapter5/chapter5-result}
-		
-		% Chapter 6 (Assigned to: SANIYA & Team)
+
+		% Chapter 6
 		\input{./Chapter6/chapter6-conclution}
-		
+
 		% Appendix
 		\appendix
 		\input{./Appendix/Apndx}
-		
+
 		% Bibliography
 		\backmatter
 		\clearpage
