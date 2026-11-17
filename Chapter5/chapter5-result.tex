@@ -5,7 +5,7 @@
 \textit{This chapter presents the empirical evaluation of the ACO-GNN framework across static benchmarks, dynamic streaming environments, and adversarial stress tests. The multi-seed real-world benchmark evaluations (YelpChi and Amazon), feature preprocessing ablations, and system engineering were conducted by Sanya. The dynamic lending network formulation, streaming trajectory analysis, and adversarial camouflage stress tests were designed and evaluated by Saniya. Base paper reproduction of CARE-GNN was verified collaboratively with Poorvi.}
 \end{tcolorbox}
 
-This chapter provides a comprehensive empirical assessment of the proposed ACO-GNN model across three distinct evaluation domains: real-world fraud graphs (YelpChi and Amazon), a dynamic streaming credit network, and an adversarial camouflage testbed. Section~\ref{sec:exp_setup} details our hardware, software, and hyperparameter setup. Section~\ref{sec:reproduction_validation} validates our reproduction of the baseline CARE-GNN model. Section~\ref{sec:main_comparison} presents our primary five-seed findings on YelpChi and Amazon. Section~\ref{sec:dynamic_lending_results} evaluates performance on dynamic lending streams. Section~\ref{sec:stress_testing} examines model resilience against deliberate camouflage noise. Section~\ref{sec:ablation} isolates individual architectural contributions through ablation, and Section~\ref{sec:homophily} discusses the structural role of relational homophily.
+In this chapter, we evaluate ACO-GNN across three different testing grounds: real-world fraud benchmarks (YelpChi and Amazon), an incremental dynamic lending simulation, and a controlled camouflage noise testbed. We describe our hardware and software configuration, confirm our baseline CARE-GNN reproduction, and analyze our main five-seed benchmark findings. We then evaluate dynamic stream adaptation, test camouflage resilience under noise, examine component contributions through ablations, and explore why relational homophily plays a critical role in fraud detection.
 
 % ==============================================================================
 % SECTION 5.1: EXPERIMENTAL SETUP
@@ -46,11 +46,11 @@ Table~\ref{tab:hyperparams} lists the hyperparameter configuration used across t
 
 \begin{table}[htbp]
 \centering
-\small
-\setlength{\tabcolsep}{4pt}
+\footnotesize
+\setlength{\tabcolsep}{2pt}
 \caption[ACO-GNN hyperparameter configuration]{ACO-GNN hyperparameter configuration for benchmark evaluation.}
 \label{tab:hyperparams}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}llcc}
+\begin{tabular}{llcc}
 \toprule
 \textbf{Category} & \textbf{Parameter} & \textbf{YelpChi} & \textbf{Amazon} \\
 \midrule
@@ -82,7 +82,7 @@ Table~\ref{tab:hyperparams} lists the hyperparameter configuration used across t
     & Preprocessing            & Raw features & Row-sum norm. ($\epsilon = 0.01$) \\
     & Normalization scope      & --- & All nodes \\
 \bottomrule
-\end{tabular*}
+\end{tabular}
 \end{table}
 
 \subsection{Evaluation Protocol}
@@ -101,8 +101,8 @@ Table~\ref{tab:dataset_summary} summarizes the structural parameters, edge count
 
 \begin{table}[htbp]
 \centering
-\small
-\setlength{\tabcolsep}{3.5pt}
+\footnotesize
+\setlength{\tabcolsep}{2pt}
 \caption[Benchmark dataset statistics]{Benchmark dataset statistics for experimental evaluation.}
 \label{tab:dataset_summary}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccc}
@@ -161,8 +161,8 @@ Table~\ref{tab:yelpchi_main} summarizes five-seed test performance on YelpChi us
 
 \begin{table}[htbp]
 \centering
-\small
-\setlength{\tabcolsep}{3.5pt}
+\footnotesize
+\setlength{\tabcolsep}{2pt}
 \caption[YelpChi five-seed benchmark comparison]{YelpChi benchmark comparison (5-seed mean $\pm$ std, validation-calibrated threshold).}
 \label{tab:yelpchi_main}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc}
@@ -184,8 +184,8 @@ Table~\ref{tab:yelpchi_fixed_threshold} reports corresponding metrics at the unc
 
 \begin{table}[htbp]
 \centering
-\small
-\setlength{\tabcolsep}{3.5pt}
+\footnotesize
+\setlength{\tabcolsep}{2pt}
 \caption[YelpChi results at fixed 0.5 threshold]{YelpChi benchmark comparison at fixed threshold $\theta = 0.5$ (5-seed mean $\pm$ std).}
 \label{tab:yelpchi_fixed_threshold}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc}
@@ -206,8 +206,8 @@ Table~\ref{tab:amazon_main} reports five-seed performance on Amazon with row-nor
 
 \begin{table}[htbp]
 \centering
-\small
-\setlength{\tabcolsep}{3.5pt}
+\footnotesize
+\setlength{\tabcolsep}{2pt}
 \caption[Amazon five-seed benchmark comparison]{Amazon benchmark comparison (5-seed mean $\pm$ std, row-normalized features, validation-calibrated threshold).}
 \label{tab:amazon_main}
 \begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lccccc}
@@ -233,10 +233,10 @@ Table~\ref{tab:synthetic_main} shows performance on the synthetic lending graph 
 \begin{table}[htbp]
 \centering
 \small
-\setlength{\tabcolsep}{3.5pt}
+\setlength{\tabcolsep}{6pt}
 \caption[Synthetic benchmark comparison across baseline tiers]{Synthetic lending network benchmark (1,000 nodes, 15\% camouflage noise).}
 \label{tab:synthetic_main}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}llccc}
+\begin{tabular}{llccc}
 \toprule
 \textbf{Tier} & \textbf{Model} & \textbf{Macro-F1} & \textbf{AUC-ROC} & \textbf{PR-AUC} \\
 \midrule
@@ -251,8 +251,8 @@ Fraud GNN & CARE-GNN (reproduced) & 0.6347$^{\dagger}$ & 0.7734$^{\dagger}$ & 0.
 \midrule
 \textbf{Proposed} & \textbf{ACO-GNN} & \textbf{0.9412} & \textbf{0.9925} & \textbf{0.9179} \\
 \bottomrule
-\multicolumn{5}{l}{\footnotesize $^{\dagger}$ CARE-GNN numbers from YelpChi reproduction (Section~\ref{sec:reproduction_validation}); synthetic CARE-GNN run not available.}
-\end{tabular*}
+\multicolumn{5}{p{0.92\linewidth}}{\footnotesize $^{\dagger}$ CARE-GNN numbers from YelpChi reproduction (Section~\ref{sec:reproduction_validation}); synthetic CARE-GNN run not available.}
+\end{tabular}
 \end{table}
 
 On this benchmark, ACO-GNN scored \textbf{0.9412 Macro-F1}, substantially outperforming standard GAT (0.3125). Tabular classifiers struggle because they cannot inspect relational structure, while standard attention layers get confused by deceptive links. Stigmergic memory enables ACO-GNN to keep track of persistent multi-hop fraud patterns even under noisy connectivity.
@@ -260,7 +260,7 @@ On this benchmark, ACO-GNN scored \textbf{0.9412 Macro-F1}, substantially outper
 % ==============================================================================
 % SECTION 5.4: DYNAMIC LENDING NETWORK SIMULATION
 % ==============================================================================
-\section[Dynamic Lending Network Adaptation]{Dynamic Lending Network Adaptation and Streaming Trajectory}
+\section[Dynamic Lending Network Adaptation]{Dynamic Lending Network Adaptation\\[2pt]and Streaming Trajectory}
 \label{sec:dynamic_lending_results}
 
 Most conventional fraud models assume that graphs remain static throughout training and inference. In actual credit scoring and digital lending applications, however, borrower accounts, co-signer links, and financial transactions arrive in continuous streaming batches ($k \in \{1, 2, 3, 4, 5\}$). Whenever new borrower clusters appear, static models either degrade in performance or require retraining from scratch, which quickly becomes computationally prohibitive.
@@ -371,7 +371,7 @@ To measure what each part of the architecture contributes, we evaluated four mod
 \setlength{\tabcolsep}{4pt}
 \caption[Component ablation results]{Component ablation analysis (synthetic benchmark, 20\% camouflage noise).}
 \label{tab:ablation_results}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}lcccc}
+\begin{tabularx}{\textwidth}{@{}l c c c >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Configuration} & \textbf{Macro-F1} & \textbf{AUC-ROC} & \textbf{PR-AUC} & \textbf{Key Insight} \\
 \midrule
@@ -380,7 +380,7 @@ Pure ACO ($\lambda = 0.0$)    & 0.8148 & 0.9826 & 0.8972 & Pheromones alone are 
 No-Evap. ($\rho = 0$)         & 0.8679 & 0.9891 & 0.9047 & No cleanup $\Rightarrow$ F1 trades for AUC \\
 \textbf{Full ACO-GNN}         & \textbf{0.8519} & \textbf{0.9925} & \textbf{0.9179} & \textbf{Best ranking quality} \\
 \bottomrule
-\end{tabular*}
+\end{tabularx}
 \end{table}
 
 \begin{figure}[htbp]
@@ -450,7 +450,7 @@ Table~\ref{tab:findings_summary} provides an overview of our experimental result
 \setlength{\tabcolsep}{3pt}
 \caption[Summary of key empirical findings]{Summary of key empirical findings across all experiments.}
 \label{tab:findings_summary}
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}p{3.5cm}p{3.5cm}p{3.5cm}p{3.5cm}}
+\begin{tabularx}{\textwidth}{@{} >{\raggedright\arraybackslash}p{2.6cm} >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X >{\raggedright\arraybackslash}X @{}}
 \toprule
 \textbf{Experiment} & \textbf{Key Finding} & \textbf{Implication} & \textbf{Practical Takeaway} \\
 \midrule
@@ -466,5 +466,5 @@ Ablation & Pheromones alone: $0.81$ F1; Attention alone: $0.44$ F1 & Stigmergy p
 \midrule
 Homophily & 91\% homophily gives large gains; 5\% gives parity & Pheromone utility depends on underlying homophily & Motivated relation-specific gating for future work \\
 \bottomrule
-\end{tabular*}
+\end{tabularx}
 \end{table}

@@ -15,11 +15,11 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Student Details (SANIYA, POORVI, SANYA SAXENA)
 \stuNameB{POORVI GOEL}
-\stuUSNB{Enrollment No.: 08901182024}
+\stuUSNB{Enrollment No.: 08901182023}
 \stuNameA{SANIYA ARORA}
 \stuUSNA{Enrollment No.: 11501182023}
 \stuNameC{SANYA SAXENA}
-\stuUSNC{Enrollment No.: 11801182025}
+\stuUSNC{Enrollment No.: 11801182023}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Guide Related commands
@@ -36,10 +36,10 @@
 \QRurl{}
 
 %%%%%%%%%%%%%%%%%% Glossaries & Acronyms %%%%%%%%%%%%%%%%%%
-\newglossary[sym]{symbolList}{sym1}{sym2}{List of Symbols}
-\makeglossaries
-\loadglsentries{./AuxFiles/Glossaries}
-\renewcommand{\glspostdescription}{}
+% \newglossary[sym]{symbolList}{sym1}{sym2}{List of Symbols}
+% \makeglossaries
+% \loadglsentries{./AuxFiles/Glossaries}
+% \renewcommand{\glspostdescription}{}
 
 %%%%%%%%%%%%%%%% Bibliography %%%%%%%%%%%%%%%%%%%%%
 \usepackage[style=ieee]{biblatex}
@@ -97,9 +97,9 @@
 % ---- STUDENTS (name left, enrollment right) ----
 \begin{center}
 \begin{tabular*}{0.80\textwidth}{@{\extracolsep{\fill}} l r}
-    POORVI GOEL   & 08901182024 \\[0.3cm]
+    POORVI GOEL   & 08901182023 \\[0.3cm]
     SANIYA ARORA  & 11501182023 \\[0.3cm]
-    SANYA SAXENA  & 11801182025 \\
+    SANYA SAXENA  & 11801182023 \\
 \end{tabular*}
 \end{center}
 
@@ -171,26 +171,19 @@
 
 	\newpage
 	\begin{spacing}{1.4}
-		\cleardoublepage
 		\addcontentsline{toc}{chapter}{\listfigurename}
 		\listoffigures
 	\end{spacing}
 
 	\newpage
 	\begin{spacing}{1.4}
-		\cleardoublepage
 		\addcontentsline{toc}{chapter}{\listtablename}
 		\listoftables
 	\end{spacing}
 
-	\newpage
-	\printglossary[type=\acronymtype, title= Abbreviations, toctitle=Abbreviations]
-	\newpage
-	\printglossary[type=symbolList, title= List of Symbols, toctitle=List of Symbols]
-
 	\mainmatter
 	\pagestyle{mplain}
-	\glsresetall
+	% \glsresetall
 	\begin{spacing}{1.4}
 		% Chapter 1
 		\input{./Chapter1/chapter1-Intro}
