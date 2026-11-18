@@ -120,7 +120,7 @@ Synthetic Lending & 1,000   & $\sim$5,200 & 3 (multi-hop loan rings) & 10  & 5.0
 \section[Validation of Base Paper Reproduction]{Validation of Base Paper Reproduction}
 \label{sec:reproduction_validation}
 
-We validated the reproducibility of the CARE-GNN baseline as described in recent surveys \cite{cheng2025graph}. The official CARE-GNN code was placed in the baseline folder (\texttt{baselines/CARE-GNN}), and experiments run on YelpChi and Amazon with original hyperparameters and preprocessing.
+We validated the reproducibility of the CARE-GNN baseline as described in recent surveys \cite{cheng2025graph}. The official CARE-GNN code was placed in \path{baselines/CARE-GNN}, and experiments were run on YelpChi and Amazon with original hyperparameters and preprocessing.
 
 Metrics across both datasets were closely matched (Table~\ref{tab:reproduction_results}). On YelpChi, the Macro-F1 and AUC-ROC scores of 0.6347 and 0.7734 respectively compared with ranges of 0.6280--0.6433 for Macro-F1, and 0.7619--0.7750 for AUC-ROC in the literature. Similarly, on Amazon, scores of 0.8946 and 0.9442 for Macro-F1 and AUC-ROC respectively compared with ranges of 0.8890--0.9000 for Macro-F1, and 0.9410--0.9491 for AUC-ROC. We can therefore be confident that our data loading, multi relational masking, and evaluation functions have been implemented correctly. This means that we can be confident in having a reliable baseline for testing ACO-GNN.
 
@@ -381,7 +381,7 @@ No-Evap. ($\rho = 0$)         & 0.8679 & 0.9891 & 0.9047 & No cleanup $\Rightarr
 Insights:
 
 \begin{enumerate}
-    \item \textbf{Pheromone Contribution to Robustness to Camouflage:} Without pheromones in the model (Vanilla GAT), performance was severely reduced. The Macro-F1 dropped from 0.8519 to 0.4444. This means that it is the ant memory, and not node feature attention, that allows the model to be robust to deceptive edges.
+    \item \textbf{Pheromone Contribution to Camouflage Robustness:} Without pheromones in the model (Vanilla GAT), performance was severely reduced. The Macro-F1 dropped from 0.8519 to 0.4444. This means that it is the ant memory, and not node feature attention, that allows the model to be robust to deceptive edges.
     
     \item \textbf{Evaporation Prevents Over-saturation:} While turning evaporation off resulted in a slightly increased Macro-F1 (0.8679), the quality of rankings were worse. PR-AUC dropped to 0.9047, compared to 0.9179 with evaporation. Without evaporation, pheromones will accumulate on every active edge, making it difficult to clearly rank suspicious accounts.
     
@@ -391,7 +391,7 @@ Insights:
 % ==============================================================================
 % SECTION 5.7: HOMOPHILY ANALYSIS
 % ==============================================================================
-\section[Homophily Analysis \& Comparison across Datasets]{Homophily Analysis \& Comparison across Datasets}
+\section[Homophily Analysis \& Comparison across Datasets]{Homophily Analysis \& Comparison\\[2pt]across Datasets}
 \label{sec:homophily}
 
 As the model improved significantly on the YelpChi dataset (+9.3\% Macro-F1), but matched CARE-GNN on Amazon (+0.26\% Macro-F1), we investigated the graph structure. We found the amount of relational homophily in the graph is a key factor behind this difference.
