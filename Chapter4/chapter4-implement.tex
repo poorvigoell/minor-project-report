@@ -94,7 +94,7 @@ Once forward propagation has been performed, the following 5 steps can be perfor
 Model weights are updated using standard back-propagation. Trail updates are iteratively performed (Algorithm~\ref{alg:training_pipeline}, Appendix~\ref{app:algorithms}):
 
 \begin{itemize}
-    \item \textbf{Forward Propagation:} During each epoch, gate weights $\lambda = \sigma(\psi) \in (0, 1)$ are applied to self attention and pheromone values (Equation~\ref{eq:dual_attention_blend}). They are then passed through layer normalisation and residual connections (Equation~\ref{eq:final_layer_norm}).
+    \item \textbf{Forward Propagation:} During each epoch, gate weights $\lambda = \sigma(\psi) \in (0, 1)$ are applied to self attention and pheromone values (Equation~\ref{eq:dual_attention_blend}), followed by layer normalisation and residual connections.
     \item \textbf{Optimising Model:} Model parameters $\Theta$ are optimised using Adam to reduce the focal loss $\mathcal{L}_{\text{FL}}$ (Equation~\ref{eq:focal_loss}) in the training set $\mathcal{V}_{\text{train}}$. We chose a focusing parameter of $\gamma = 2.0$, meaning examples of benign nodes that are easy to classify will have reduced losses. This means that during optimisation, more focus is given to finding camouflaged fraudulent nodes.
     \item \textbf{Update Stigmergy:} Immediately after back propagation, predicted fraud values are passed to the ACO system to update trails. Since this is in the \texttt{torch.no\_grad()} block, no gradient calculations are being performed meaning no overhead occurs.
     \item \textbf{Early Stopping:} To avoid prediction being heavily biased toward the majority class, combined scores $S_{\text{val}} = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$ are calculated during validation. Early stopping is performed with patience level $P=15$, and the best model checkpoint is returned to.
@@ -177,13 +177,7 @@ Attention and pheromone values are blended (\texttt{PheromoneGuidedConv}), by gr
 
 \begin{enumerate}
     \item \textbf{Pre-Calculate Start/End Node Projections:} For efficiency, start and end node projections ($\mathbf{a}_{\text{src}}^T \mathbf{W} \mathbf{h}_i$ and $\mathbf{a}_{\text{dst}}^T \mathbf{W} \mathbf{h}_j$) are pre-calculated for all nodes (size $N$). Edge index can be retrieved. Large intermediate feature tensors for millions of edges are avoided.
-    \item \textbf{Grouped Softmax:} To ensure attention values are weighted correctly, we cannot take a global softmax across all edges in this model (as this would incorrectly group attention values from different end nodes). Three steps of grouped scatter are performed:
-    \begin{align*}
-        \text{max}_{j} &\leftarrow \texttt{scatter\_reduce}(\text{dst}, \alpha_{\text{logits}}, \text{`amax'}) \\
-        \alpha_{\text{exp}} &= \exp(\alpha_{\text{logits}} - \text{max}_{j}[\text{dst}]) \\
-        \alpha_{ij} &= \frac{\alpha_{\text{exp}}}{\texttt{scatter\_add}(\text{dst}, \alpha_{\text{exp}}) + 10^{-8}}
-    \end{align*}
-    Subtraction of max values based on end node avoids overflows in float32 values. This ensures attention values are correctly normalised in incoming neighbourhoods of nodes.
+    \item \textbf{Grouped Softmax:} To ensure attention values are weighted correctly, we cannot take a global softmax across all edges in this model (as this would incorrectly group attention values from different end nodes). Three steps of grouped scatter are performed: $\text{max}_{j} \leftarrow \texttt{scatter\_reduce}(\text{dst}, \alpha_{\text{logits}}, \text{`amax'})$, $\alpha_{\text{exp}} = \exp(\alpha_{\text{logits}} - \text{max}_{j}[\text{dst}])$, and $\alpha_{ij} = \frac{\alpha_{\text{exp}}}{\texttt{scatter\_add}(\text{dst}, \alpha_{\text{exp}}) + 10^{-8}}$. Subtraction of max values based on end node avoids overflows in float32 values. This ensures attention values are correctly normalised in incoming neighbourhoods of nodes.
     \item \textbf{Iterate Through Relation Types:} Instead of loading 3.85M edges in one go, boolean masks are used in a loop to iterate through each relation type. Around 1.28M edges are processed at a time. Peak memory usage has therefore been reduced by a factor of around 3.
 \end{enumerate}
 

@@ -52,7 +52,7 @@ This appendix provides the formal algorithmic specifications for the ACO-GNN fra
 \For{$\text{epoch} = 1 \text{ to } E_{\max}$}
     \State \textbf{// Forward Message-Passing Pass}
     \State $\lambda \leftarrow \sigma(\psi)$
-    \State Compute layer outputs $\mathbf{h}^{(l+1)}$ using Equation \ref{eq:dual_attention_blend} and \ref{eq:final_layer_norm}
+    \State Compute layer outputs $\mathbf{h}^{(l+1)}$ using Equation \ref{eq:dual_attention_blend} with residual connections and layer normalisation
     \State Compute class logits: $\hat{\mathbf{Z}} = \text{MLP}(\mathbf{h}^{(L)})$
     \State $\mathbf{p} \leftarrow \text{Softmax}(\hat{\mathbf{Z}})[:, 1]$ \Comment{Minority fraud class probabilities}
     \State \textbf{// Loss Computation}

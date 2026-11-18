@@ -115,36 +115,15 @@ In graphs with a large number of edges, such as YelpChi with 4 million edges, st
 At the start of training, all entities receive a neutral, uniform pheromone value of $s_i^{(0)} = \tau_0 = 1.0$, which guarantees an uninformative prior ($\tau_{ij} = 1.0$) before model exploration begins.
 
 \subsection{Exponential Evaporation}
-To dissolve camouflage links and forget transient perturbations, an exponential decay is applied to the global pheromone state at each training epoch:
-\begin{equation}
-    \mathbf{s} \leftarrow \mathbf{s} \cdot (1 - \rho)
-    \label{eq:evaporation_step}
-\end{equation}
-where $\rho \in (0, 1)$ is the evaporation rate (default $\rho = 0.05$; tuned to $\rho = 0.15$ on YelpChi static benchmarks and $\rho = 0.03$ for dynamic streaming experiments). If a camouflage link is established between an illicit node and a benign target, the benign node will not sustain positive fraud reinforcement in later epochs. As a result, the pheromone value decays exponentially toward $\tau_{\min} = 0.01$.
+To dissolve camouflage links and forget transient perturbations, an exponential decay is applied to the global pheromone state: $\mathbf{s} \leftarrow \mathbf{s} \cdot (1 - \rho)$, where $\rho \in (0, 1)$ is the evaporation rate (default $\rho = 0.05$; tuned to $\rho = 0.15$ on YelpChi static benchmarks and $\rho = 0.03$ for dynamic streaming experiments). If a camouflage link is established between an illicit node and a benign target, the benign node will not sustain positive fraud reinforcement in later epochs. As a result, the pheromone value decays exponentially toward $\tau_{\min} = 0.01$.
 
 \subsection{Rewarding Risk and Final Pheromone Update}
-After each epoch, the model's predicted fraud probabilities are used as a reward signal $\tilde{p}_i$, where $\tilde{p}_i = y_i$ if $v_i \in \mathcal{V}_{\text{train}}$ and $\tilde{p}_i = \text{clamp}(p_i, 0.0, 1.0)$ if $v_i \in \mathcal{V} \setminus \mathcal{V}_{\text{train}}$.
+After each epoch, the model's predicted fraud probabilities are used as a reward signal $\tilde{p}_i$, where $\tilde{p}_i = y_i$ if $v_i \in \mathcal{V}_{\text{train}}$ and $\tilde{p}_i = \text{clamp}(p_i, 0.0, 1.0)$ if $v_i \in \mathcal{V} \setminus \mathcal{V}_{\text{train}}$. The mutual edge reward $R_{ij} = \sqrt{\tilde{p}_i \cdot \tilde{p}_j + \epsilon}$ captures the probability that both connected entities belong to a fraud ring. This reward is aggregated back to local neighborhoods through a degree-normalised scatter sum $\bar{R}_i = \frac{\sum_{j \in \mathcal{N}(i)} R_{ij}}{\max(1, |\mathcal{N}(i)|)}$. The joint anomaly target blends the node's own prediction with its neighbourhood consensus: $T_i = \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot \left[0.5 \cdot \tilde{p}_i + 0.5 \cdot \bar{R}_i\right]$.
 
-The mutual edge reward $R_{ij} = \sqrt{\tilde{p}_i \cdot \tilde{p}_j + \epsilon}$ captures the probability that both connected entities belong to a fraud ring.
-
-This reward is aggregated back to local neighborhoods through a degree-normalised scatter sum $\bar{R}_i = \frac{\sum_{j \in \mathcal{N}(i)} R_{ij}}{\max\left(1, |\mathcal{N}(i)|\right)}$.
-
-The joint anomaly target blends the node's own prediction with its neighbourhood consensus: $T_i = \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot \left[0.5 \cdot \tilde{p}_i + 0.5 \cdot \bar{R}_i\right]$.
-
-The final pheromone update follows an Exponential Moving Average (EMA) formulation:
-\begin{equation}
-    s_i \leftarrow \text{clamp}\left( (1 - \gamma_u) \cdot s_i + \gamma_u \cdot T_i, \, \tau_{\min}, \, \tau_{\max} \right)
-    \label{eq:reinforce_ema}
-\end{equation}
-where $\gamma_u = \min(1.0, \max(0.0, \rho \cdot Q \cdot w_{\text{reinforce}}))$ regulates the momentum of trail accumulation.
+The final pheromone update follows an Exponential Moving Average (EMA) formulation $s_i \leftarrow \text{clamp}\left( (1 - \gamma_u) \cdot s_i + \gamma_u \cdot T_i, \, \tau_{\min}, \, \tau_{\max} \right)$, where $\gamma_u = \min(1.0, \max(0.0, \rho \cdot Q \cdot w_{\text{reinforce}}))$ regulates the momentum of trail accumulation.
 
 \subsection{Softmax Prior Normalization}
-Before message aggregation, raw edge pheromone values are normalised across incoming neighbours of destination node $j$. For relation type $r$, the structural prior $\hat{\tau}_{ij}^{(r)}$ is defined as:
-\begin{equation}
-    \hat{\tau}_{ij}^{(r)} = \frac{\exp\left(\tau_{ij}^{(r)} / T_s\right)}{\sum_{k \in \mathcal{N}_r(j)} \exp\left(\tau_{kj}^{(r)} / T_s\right)}
-    \label{eq:tau_softmax}
-\end{equation}
-where $T_s > 0$ is a temperature hyperparameter (default $T_s = 1.0$). This normalization ensures that $\sum_{i \in \mathcal{N}_r(j)} \hat{\tau}_{ij}^{(r)} = 1$, giving a valid probability distribution over neighbours.
+Before message aggregation, raw edge pheromone values are normalised across incoming neighbours of destination node $j$. For relation type $r$, the structural prior is defined as $\hat{\tau}_{ij}^{(r)} = \frac{\exp(\tau_{ij}^{(r)} / T_s)}{\sum_{k \in \mathcal{N}_r(j)} \exp(\tau_{kj}^{(r)} / T_s)}$, where $T_s > 0$ is a temperature hyperparameter (default $T_s = 1.0$). This normalization ensures that $\sum_{i \in \mathcal{N}_r(j)} \hat{\tau}_{ij}^{(r)} = 1$, giving a valid probability distribution over neighbours.
 
 \section[Bi-Attentive Message Passing]{Bi-Attentive Message Passing}
 \label{sec:dual_attention}
@@ -163,20 +142,10 @@ The unified edge weight $\Omega_{ij}^{(r)}$ is computed via a convex combination
 where $\lambda$ is a learnable blending coefficient, parameterized as a sigmoid-transformed scalar initialized at $\lambda = 0.5$ and optimized via backpropagation.
 
 \subsection{Multi-Relational Aggregation}
-Neighbour messages scaled by $\Omega_{ij}^{(r)}$ are summed across all relations:
-\begin{equation}
-    \mathbf{m}_j^{(l)} = \sum_{r \in \mathcal{R}} \beta_r \sum_{i \in \mathcal{N}_r(j)} \Omega_{ij}^{(r)} \mathbf{z}_{i, r}^{(l)}
-    \label{eq:multi_rel_agg}
-\end{equation}
-where $\beta_r$ is an optional relation-importance gating coefficient. In the standard configuration, messages are summed directly across all relations.
+Neighbour messages scaled by $\Omega_{ij}^{(r)}$ are summed across all relations: $\mathbf{m}_j^{(l)} = \sum_{r \in \mathcal{R}} \beta_r \sum_{i \in \mathcal{N}_r(j)} \Omega_{ij}^{(r)} \mathbf{z}_{i, r}^{(l)}$, where $\beta_r$ is an optional relation-importance gating coefficient (default $\beta_r = 1$).
 
 \subsection{Skip Connections and Layer Normalisation}
-To preserve identity information and prevent oversmoothing across layers, a dedicated root node transformation is applied, followed by a residual skip addition and layer normalisation:
-\begin{equation}
-    \mathbf{h}_j^{(l+1)} = \mathbf{h}_j^{(l)} + \text{Dropout}\left(\text{ReLU}\left(\text{LayerNorm}\left(\tilde{\mathbf{h}}_j^{(l+1)}\right)\right), \, p\right)
-    \label{eq:final_layer_norm}
-\end{equation}
-where $p$ is the dropout probability (default $p = 0.3$).
+To preserve identity information and prevent oversmoothing across layers, a dedicated root node transformation is applied, followed by residual skip addition and layer normalisation $\mathbf{h}_j^{(l+1)} = \mathbf{h}_j^{(l)} + \text{Dropout}\left(\text{ReLU}\left(\text{LayerNorm}\left(\tilde{\mathbf{h}}_j^{(l+1)}\right)\right), \, p\right)$, where $p$ is the dropout probability (default $p = 0.3$).
 
 \section[Class Imbalance Loss Function]{Class Imbalance Loss Function}
 \label{sec:focal_loss}
@@ -191,11 +160,7 @@ In credit graphs, there is a large class imbalance. Only 5--15\% of entities are
 The gamma value ($\gamma = 2.0$) ensures that easy to identify legitimate nodes no longer produce a large loss, meaning gradients in backpropagation will mainly come from difficult to identify (ambiguous/camouflaged) fraudulent nodes. The alpha value ($\alpha = 0.75$) balances the representation of illicit nodes in the minority class.
 
 \subsection{Optimal Decision Boundary}
-If a fixed decision boundary of 0.5 is used, there will be a large issue in highly imbalanced data. The model may achieve high accuracy scores, however in reality, most fraudulent users are being missed. To solve this, after every epoch, a grid search is performed on the validation data. The decision boundary is chosen to maximise minority class (Illicit) F1 score:
-\begin{equation}
-    \theta^* = \arg\max_{\theta \in [0.05, 0.95]} \text{F1}_{\text{illicit}}\left(\mathbf{Y}_{\text{val}}, \, \mathbb{I}\left(\hat{\mathbf{P}}_{\text{val}} \ge \theta\right)\right)
-    \label{eq:threshold_calibration}
-\end{equation}
+If a fixed decision boundary of 0.5 is used, there will be a large issue in highly imbalanced data. The model may achieve high accuracy scores, however in reality, most fraudulent users are being missed. To solve this, after every epoch, a grid search is performed on the validation data. The decision boundary $\theta^* = \arg\max_{\theta \in [0.05, 0.95]} \text{F1}_{\text{illicit}}\left(\mathbf{Y}_{\text{val}}, \, \mathbb{I}\left(\hat{\mathbf{P}}_{\text{val}} \ge \theta\right)\right)$ is chosen to maximise minority class (Illicit) F1 score.
 
 \begin{itemize}
     \item \textbf{Dual Decision Boundaries:} To allow fair comparisons with CARE-GNN results (reported at a decision boundary of 0.5), two decision boundaries are reported in this pipeline. The test results are reported at a decision boundary of 0.5 and the optimal boundary found in validation.
