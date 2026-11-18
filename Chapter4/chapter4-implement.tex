@@ -78,32 +78,16 @@ Once forward propagation has been performed, the following 5 steps can be perfor
     During training, labels $y_i \in \{0, 1\}$ are given to labelled nodes $v_i \in \mathcal{V}_{\text{train}}$. During validation/testing, probabilities of fraud $p_i = \text{Softmax}(\hat{\mathbf{Z}})_{i, 1}$ are calculated for each node.
 
     \item \textbf{Pairwise Risk ($R_{ij}$):}
-    For every edge $(i, j) \in \mathcal{E}$, the risk of fraud is calculated as the geometric mean of the risk of fraud for each node in the edge:
-    \begin{equation}
-        R_{ij} = \sqrt{\tilde{p}_i \cdot \tilde{p}_j + 10^{-8}}
-    \end{equation}
-    If either node in the edge has a low risk of fraud then the edge will have a low risk. If a fraudulent node is connected to a non fraudulent node, risk will be close to 0. Therefore, no pheromone will be added to camouflaged edges.
+    For every edge $(i, j) \in \mathcal{E}$, the risk of fraud is calculated as the geometric mean of the risk of fraud for each node in the edge: $R_{ij} = \sqrt{\tilde{p}_i \cdot \tilde{p}_j + 10^{-8}}$. If either node in the edge has a low risk of fraud then the edge will have a low risk. If a fraudulent node is connected to a non fraudulent node, risk will be close to 0. Therefore, no pheromone will be added to camouflaged edges.
 
     \item \textbf{Agreement Between Neighbouring Nodes ($\bar{R}_i$):}
-    To prevent extreme risk values from affecting trails, the average risk from direct neighbouring nodes is calculated:
-    \begin{equation}
-        \bar{R}_i = \frac{1}{\max(1, |\mathcal{N}(i)|)} \sum_{j \in \mathcal{N}(i)} R_{ij}
-    \end{equation}
-    Targeted node potentials are calculated as the mean risk from the node and sum of risks from neighbouring nodes: $T_i = \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot [0.5 \tilde{p}_i + 0.5 \bar{R}_i]$.
+    To prevent extreme risk values from affecting trails, the average risk from direct neighbouring nodes is calculated: $\bar{R}_i = \frac{1}{\max(1, |\mathcal{N}(i)|)} \sum_{j \in \mathcal{N}(i)} R_{ij}$. Targeted node potentials are calculated as the mean risk from the node and sum of risks from neighbouring nodes: $T_i = \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot [0.5 \tilde{p}_i + 0.5 \bar{R}_i]$.
 
     \item \textbf{Exponential Moving Average:}
-    Node potentials $\mathbf{s} \in \mathbb{R}^N$ are calculated as exponentially moving averages with $\gamma_u$:
-    \begin{equation}
-        s_i' = (1 - \gamma_u) \cdot s_i + \gamma_u \cdot T_i
-    \end{equation}
-    The node potentials are capped to $[\tau_{\min}, \tau_{\max}]$ to ensure they do not go to 0 or infinity.
+    Node potentials $\mathbf{s} \in \mathbb{R}^N$ are calculated as exponentially moving averages with $\gamma_u$: $s_i' = (1 - \gamma_u) \cdot s_i + \gamma_u \cdot T_i$. The node potentials are capped to $[\tau_{\min}, \tau_{\max}]$ to ensure they do not go to 0 or infinity.
 
     \item \textbf{Softmax Normalisation ($\hat{\boldsymbol{\tau}}$):}
-    Pairwise trails are calculated for each edge as $\tau_{ij} = \sqrt{s_i' \cdot s_j' + 10^{-8}}$. These values are normalised with a temperature scaled softmax function over incoming edges:
-    \begin{equation}
-        \hat{\tau}_{ij} = \frac{\exp(\tau_{ij} / T_s)}{\sum_{k \in \mathcal{N}(j)} \exp(\tau_{kj} / T_s)}
-    \end{equation}
-    We now have a normalised edge weight. This can be passed onto the next step.
+    Pairwise trails are calculated for each edge as $\tau_{ij} = \sqrt{s_i' \cdot s_j' + 10^{-8}}$. These values are normalised with a temperature scaled softmax function over incoming edges: $\hat{\tau}_{ij} = \frac{\exp(\tau_{ij} / T_s)}{\sum_{k \in \mathcal{N}(j)} \exp(\tau_{kj} / T_s)}$. We now have a normalised edge weight. This can be passed onto the next step.
 \end{enumerate}
 
 \subsection{Training}
@@ -182,15 +166,7 @@ In standard ACO models, pheromone values are defined for edges $\tau_{ij}$. Howe
     \item \textbf{High Overhead from Checkpoints:} Since large edge tensors are saved, and reloaded in early stopping (if a better validation score is found), large overhead in each epoch occurs due to the increased latency from reading from disk.
 \end{enumerate}
 
-To improve this, we changed the model to store pheromone values in node form:
-\begin{equation}
-    \mathbf{s} \in \mathbb{R}^{N}, \quad s_i = \text{stigmergic risk score for node } v_i
-\end{equation}
-During message passing, the pheromone values for directional edges are calculated by taking the geometric mean of the start and end node values:
-\begin{equation}
-    \tau_{ij} = \sqrt{s_i \cdot s_j + 10^{-8}}
-    \label{eq:node_pheromone_derivation}
-\end{equation}
+To improve this, we changed the model to store pheromone values in node form $\mathbf{s} \in \mathbb{R}^{N}$, where $s_i$ is the stigmergic risk score for node $v_i$. During message passing, the pheromone values for directional edges are calculated by taking the geometric mean of the start and end node values: $\tau_{ij} = \sqrt{s_i \cdot s_j + 10^{-8}}$.
 
 This change reduced memory requirements from $\mathcal{O}(|\mathcal{E}|)$ to $\mathcal{O}(N)$. For the YelpChi data set, this means pheromone values to be stored have gone from 3.85M values to 45,954. A $83.7\times$ improvement! Since node potential values are derived from aggregated values of surrounding nodes, regardless of which edges are sampled in a mini-batch, the edge weights between epochs will be consistent.
 
@@ -202,11 +178,11 @@ Attention and pheromone values are blended (\texttt{PheromoneGuidedConv}), by gr
 \begin{enumerate}
     \item \textbf{Pre-Calculate Start/End Node Projections:} For efficiency, start and end node projections ($\mathbf{a}_{\text{src}}^T \mathbf{W} \mathbf{h}_i$ and $\mathbf{a}_{\text{dst}}^T \mathbf{W} \mathbf{h}_j$) are pre-calculated for all nodes (size $N$). Edge index can be retrieved. Large intermediate feature tensors for millions of edges are avoided.
     \item \textbf{Grouped Softmax:} To ensure attention values are weighted correctly, we cannot take a global softmax across all edges in this model (as this would incorrectly group attention values from different end nodes). Three steps of grouped scatter are performed:
-    \begin{align}
+    \begin{align*}
         \text{max}_{j} &\leftarrow \texttt{scatter\_reduce}(\text{dst}, \alpha_{\text{logits}}, \text{`amax'}) \\
         \alpha_{\text{exp}} &= \exp(\alpha_{\text{logits}} - \text{max}_{j}[\text{dst}]) \\
         \alpha_{ij} &= \frac{\alpha_{\text{exp}}}{\texttt{scatter\_add}(\text{dst}, \alpha_{\text{exp}}) + 10^{-8}}
-    \end{align}
+    \end{align*}
     Subtraction of max values based on end node avoids overflows in float32 values. This ensures attention values are correctly normalised in incoming neighbourhoods of nodes.
     \item \textbf{Iterate Through Relation Types:} Instead of loading 3.85M edges in one go, boolean masks are used in a loop to iterate through each relation type. Around 1.28M edges are processed at a time. Peak memory usage has therefore been reduced by a factor of around 3.
 \end{enumerate}
@@ -253,11 +229,7 @@ By using 2 thresholds in reporting model results, we can see how models perform 
 \subsection{Multi Seed Benchmarking}
 \label{subsec:multiseed_scripts}
 
-To ensure that results were not coincidental, benchmarks were run with 5 fixed random seeds ($42, 123, 456, 789$ and $1024$). An average and standard deviation could be calculated ($\text{ddof} = 1$):
-\begin{equation}
-    \bar{m} = \frac{1}{5}\sum_{s=1}^{5} m_s, \quad \hat{\sigma} = \sqrt{\frac{1}{4}\sum_{s=1}^{5}(m_s - \bar{m})^2}
-\end{equation}
-Two scripts were written for benchmarking:
+To ensure that results were not coincidental, benchmarks were run with 5 fixed random seeds ($42, 123, 456, 789$ and $1024$). An average and standard deviation could be calculated ($\bar{m} = \frac{1}{5}\sum_{s=1}^{5} m_s$, $\hat{\sigma} = \sqrt{\frac{1}{4}\sum_{s=1}^{5}(m_s - \bar{m})^2}$ with $\text{ddof} = 1$). Two scripts were written for benchmarking:
 
 \begin{itemize}
     \item \texttt{run\_multiseed\_aco.py}: Models are trained. If better validation scores are found, models are saved. Models are evaluated with 5 seeds on the YelpChi and Amazon data sets. Results are saved in JSON format for each seed. Training can be paused and continued if experiments are interrupted.

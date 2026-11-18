@@ -69,12 +69,7 @@ To counter camouflage without pruning edges prematurely, our architecture divide
 \label{sec:relation_construction}
 \label{sec:graph_formulation}
 
-We formally define a financial transaction or lending network as an attributed multi-relational heterogeneous graph:
-\begin{equation}
-    \mathcal{G} = \left(\mathcal{V}, \mathcal{E}, \mathcal{R}, \mathbf{X}, \mathbf{Y}\right)
-    \label{eq:graph_definition}
-\end{equation}
-where $\mathcal{V} = \{v_1, v_2, \dots, v_N\}$ represents the set of $N$ entities (e.g., loan applicants, merchants, digital accounts), and $\mathcal{E} \subseteq \mathcal{V} \times \mathcal{V} \times \mathcal{R}$ denotes directed edges annotated with relation types $r \in \mathcal{R}$. The matrix $\mathbf{X} \in \mathbb{R}^{N \times D}$ defines $D$-dimensional input feature vectors describing entity profile attributes (credit score, repayment velocity, device metadata). Ground-truth binary labels are denoted by $\mathbf{Y} \in \{0, 1\}^N$, where $y_i = 1$ denotes an illicit fraudulent entity and $y_i = 0$ denotes a benign entity.
+We formally define a financial transaction or lending network as an attributed multi-relational heterogeneous graph $\mathcal{G} = \left(\mathcal{V}, \mathcal{E}, \mathcal{R}, \mathbf{X}, \mathbf{Y}\right)$, where $\mathcal{V} = \{v_1, v_2, \dots, v_N\}$ represents the set of $N$ entities (e.g., loan applicants, merchants, digital accounts), and $\mathcal{E} \subseteq \mathcal{V} \times \mathcal{V} \times \mathcal{R}$ denotes directed edges annotated with relation types $r \in \mathcal{R}$. The matrix $\mathbf{X} \in \mathbb{R}^{N \times D}$ defines $D$-dimensional input feature vectors describing entity profile attributes (credit score, repayment velocity, device metadata). Ground-truth binary labels are denoted by $\mathbf{Y} \in \{0, 1\}^N$, where $y_i = 1$ denotes an illicit fraudulent entity and $y_i = 0$ denotes a benign entity.
 
 \subsection{Meta-Path Formulations on Real-World Benchmarks}
 Real-world fraud networks are rarely homogeneous. Fraud rings operate across multiple interaction types simultaneously---sharing devices, rating the same items, or listing mutual emergency contacts. To represent these multi-layered connections, we decompose graphs into typed subgraphs via meta-paths:
@@ -96,12 +91,7 @@ Real-world fraud networks are rarely homogeneous. Fraud rings operate across mul
 \end{itemize}
 
 \subsection{Dynamic Streaming Graph Partitioning}
-To evaluate model performance under non-stationary transaction flows, our framework implements a dynamic temporal stream generator:
-\begin{equation}
-    \mathcal{G}^{(t)} = \left(\mathcal{V}^{(t)}, \mathcal{E}^{(t)}\right), \quad t \in \{1, 2, \dots, T\}
-    \label{eq:dynamic_graph_stream}
-\end{equation}
-where each batch arrives sequentially. Let $\mathcal{V}^{(t)} = \mathcal{V}^{(t-1)} \cup \Delta \mathcal{V}^{(t)}$ and $\mathcal{E}^{(t)} = \mathcal{E}^{(t-1)} \cup \Delta \mathcal{E}^{(t)}$. When new entities and edges emerge, the model evaluates incoming nodes without resetting prior historical states, directly challenging the persistence of the stigmergic trail.
+To evaluate model performance under non-stationary transaction flows, our framework implements a dynamic temporal stream generator $\mathcal{G}^{(t)} = \left(\mathcal{V}^{(t)}, \mathcal{E}^{(t)}\right)$, $t \in \{1, 2, \dots, T\}$, where each batch arrives sequentially. Let $\mathcal{V}^{(t)} = \mathcal{V}^{(t-1)} \cup \Delta \mathcal{V}^{(t)}$ and $\mathcal{E}^{(t)} = \mathcal{E}^{(t-1)} \cup \Delta \mathcal{E}^{(t)}$. When new entities and edges emerge, the model evaluates incoming nodes without resetting prior historical states, directly challenging the persistence of the stigmergic trail.
 
 \section[Stigmergic Pheromone Engine Mechanics]{Stigmergic Pheromone Engine Mechanics}
 \label{sec:pheromone_engine}
@@ -122,11 +112,7 @@ On dense transaction networks (like YelpChi with nearly 4 million edges), storin
 \end{enumerate}
 
 \subsection{Pheromone Initialization}
-At the initialization epoch $t = 0$, all entities receive a neutral, uniform trail density:
-\begin{equation}
-    s_i^{(0)} = \tau_0 = 1.0, \quad \forall v_i \in \mathcal{V}
-\end{equation}
-which guarantees an uninformative prior ($\tau_{ij} = 1.0$) prior to model exploration.
+At the initialization epoch $t = 0$, all entities receive a neutral, uniform trail density $s_i^{(0)} = \tau_0 = 1.0, \, \forall v_i \in \mathcal{V}$, which guarantees an uninformative prior ($\tau_{ij} = 1.0$) prior to model exploration.
 
 \subsection{Exponential Evaporation}
 To dissolve spurious links and forget transient camouflage perturbations, an exponential decay is applied to the global pheromone state at each training epoch:
@@ -137,29 +123,13 @@ To dissolve spurious links and forget transient camouflage perturbations, an exp
 where $\rho \in (0, 1)$ is the evaporation rate (default $\rho = 0.05$; tuned to $\rho = 0.15$ on YelpChi static benchmarks and $\rho = 0.03$ for dynamic streaming experiments). If an edge $(i, j)$ represents a deceptive camouflage link established between an illicit node and a benign target, the benign node will fail to sustain positive fraud reinforcement in subsequent epochs. As a consequence, $\tau_{ij}$ decays exponentially toward $\tau_{\min} = 0.01$.
 
 \subsection{Risk Reinforcement and Ground-Truth Feedback}
-Let $p_i = P(y_i = 1 \mid \mathbf{x}_i, \mathcal{G})$ denote the model's posterior fraud probability for entity $i$. To synthesize observed labels with semi-supervised transductive predictions without introducing label leakage into the test set, we construct an observed risk signal $\tilde{p}_i$:
-\begin{equation}
-    \tilde{p}_i = 
-    \begin{cases}
-        y_i, & \text{if } v_i \in \mathcal{V}_{\text{train}} \\
-        \text{clamp}(p_i, 0.0, 1.0), & \text{if } v_i \in \mathcal{V} \setminus \mathcal{V}_{\text{train}}
-    \end{cases}
-\end{equation}
+Let $p_i = P(y_i = 1 \mid \mathbf{x}_i, \mathcal{G})$ denote the model's posterior fraud probability for entity $i$. To synthesize observed labels with semi-supervised transductive predictions without introducing label leakage into the test set, we construct an observed risk signal $\tilde{p}_i$, where $\tilde{p}_i = y_i$ if $v_i \in \mathcal{V}_{\text{train}}$ and $\tilde{p}_i = \text{clamp}(p_i, 0.0, 1.0)$ if $v_i \in \mathcal{V} \setminus \mathcal{V}_{\text{train}}$.
 
-The mutual edge reward $R_{ij}$ captures the co-occurrence probability that both connected entities belong to a coordinated fraud ring:
-\begin{equation}
-    R_{ij} = \sqrt{\tilde{p}_i \cdot \tilde{p}_j + \epsilon}
-\end{equation}
+The mutual edge reward $R_{ij} = \sqrt{\tilde{p}_i \cdot \tilde{p}_j + \epsilon}$ captures the co-occurrence probability that both connected entities belong to a coordinated fraud ring.
 
-This pairwise reward is aggregated back to local neighborhoods through a degree-normalized scatter sum:
-\begin{equation}
-    \bar{R}_i = \frac{\sum_{j \in \mathcal{N}(i)} R_{ij}}{\max\left(1, |\mathcal{N}(i)|\right)}
-\end{equation}
+This pairwise reward is aggregated back to local neighborhoods through a degree-normalized scatter sum $\bar{R}_i = \frac{\sum_{j \in \mathcal{N}(i)} R_{ij}}{\max\left(1, |\mathcal{N}(i)|\right)}$.
 
-The joint anomaly target for entity $i$ blends its intrinsic posterior with its neighborhood consensus:
-\begin{equation}
-    T_i = \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot \left[0.5 \cdot \tilde{p}_i + 0.5 \cdot \bar{R}_i\right]
-\end{equation}
+The joint anomaly target for entity $i$ blends its intrinsic posterior with its neighborhood consensus: $T_i = \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot \left[0.5 \cdot \tilde{p}_i + 0.5 \cdot \bar{R}_i\right]$.
 
 The final pheromone update follows an Exponential Moving Average (EMA) formulation:
 \begin{equation}
@@ -183,31 +153,16 @@ where $T_s > 0$ is a temperature hyperparameter (default $T_s = 1.0$). This norm
 The graph convolution operation is formulated as the \textbf{Pheromone-Guided Convolutional Layer} (implemented as \texttt{Pheromone}\allowbreak\texttt{Guided}\allowbreak\texttt{Conv}), unifying parametric feature attention with the persistent stigmergic prior.
 
 \subsection{Dual-Attention Blending Mechanism}
-Let $\mathbf{h}_i^{(l)} \in \mathbb{R}^{d_l}$ denote the latent representation of entity $i$ at layer $l$. For each relation $r \in \mathcal{R}$, entity features are projected through relation-specific weight transformation matrices $\mathbf{W}_r^{(l)} \in \mathbb{R}^{d_{l+1} \times d_l}$:
-\begin{equation}
-    \mathbf{z}_{i, r}^{(l)} = \mathbf{W}_r^{(l)} \mathbf{h}_i^{(l)}
-\end{equation}
+Let $\mathbf{h}_i^{(l)} \in \mathbb{R}^{d_l}$ denote the latent representation of entity $i$ at layer $l$. For each relation $r \in \mathcal{R}$, entity features are projected through relation-specific weight transformation matrices $\mathbf{W}_r^{(l)} \in \mathbb{R}^{d_{l+1} \times d_l}$ as $\mathbf{z}_{i, r}^{(l)} = \mathbf{W}_r^{(l)} \mathbf{h}_i^{(l)}$.
 
-Parametric self-attention coefficients $\alpha_{ij}^{(r)}$ are computed following the Graph Attention (GAT) formulation with LeakyReLU non-linearities:
-\begin{equation}
-    e_{ij}^{(r)} = \text{LeakyReLU}\left(\mathbf{a}_{\text{src}}^{(r)\top} \mathbf{z}_{i, r}^{(l)} + \mathbf{a}_{\text{dst}}^{(r)\top} \mathbf{z}_{j, r}^{(l)}\right)
-\end{equation}
-\begin{equation}
-    \alpha_{ij}^{(r)} = \frac{\exp\left(e_{ij}^{(r)}\right)}{\sum_{k \in \mathcal{N}_r(j)} \exp\left(e_{kj}^{(r)}\right)}
-    \label{eq:gat_attention}
-\end{equation}
-where $\mathbf{a}_{\text{src}}^{(r)}, \mathbf{a}_{\text{dst}}^{(r)} \in \mathbb{R}^{d_{l+1}}$ are learnable projection vectors.
+Parametric self-attention coefficients $\alpha_{ij}^{(r)}$ follow the Graph Attention (GAT) formulation using learnable projection vectors $\mathbf{a}_{\text{src}}^{(r)}$ and $\mathbf{a}_{\text{dst}}^{(r)}$, where intermediate logits $e_{ij}^{(r)} = \text{LeakyReLU}(\mathbf{a}_{\text{src}}^{(r)\top} \mathbf{z}_{i, r}^{(l)} + \mathbf{a}_{\text{dst}}^{(r)\top} \mathbf{z}_{j, r}^{(l)})$ are normalized across incoming neighbors via softmax ($\alpha_{ij}^{(r)} = \frac{\exp(e_{ij}^{(r)})}{\sum_{k \in \mathcal{N}_r(j)} \exp(e_{kj}^{(r)})}$).
 
 The unified edge transmission weight $\Omega_{ij}^{(r)}$ is computed via the convex combination of parametric attention $\alpha_{ij}^{(r)}$ and the stigmergic prior $\hat{\tau}_{ij}^{(r)}$:
 \begin{equation}
     \Omega_{ij}^{(r)} = \lambda \cdot \alpha_{ij}^{(r)} + (1 - \lambda) \cdot \hat{\tau}_{ij}^{(r)}
     \label{eq:dual_attention_blend}
 \end{equation}
-where $\lambda$ represents the blending coefficient. To enable the network to autonomously arbitrate between instantaneous feature similarity and persistent structural memory, $\lambda$ is parameterized as an unconstrained scalar $\psi \in \mathbb{R}$ transformed via a sigmoid activation:
-\begin{equation}
-    \lambda = \sigma(\psi) = \frac{1}{1 + e^{-\psi}}
-\end{equation}
-Initialized at $\psi = 0$ ($\lambda = 0.5$), $\lambda$ is optimized via end-to-end backpropagation.
+where $\lambda$ represents the blending coefficient. To enable the network to autonomously arbitrate between instantaneous feature similarity and persistent structural memory, $\lambda$ is parameterized as an unconstrained scalar $\psi \in \mathbb{R}$ transformed via a sigmoid activation $\lambda = \sigma(\psi) = \frac{1}{1 + e^{-\psi}}$. Initialized at $\psi = 0$ ($\lambda = 0.5$), $\lambda$ is optimized via end-to-end backpropagation.
 
 \subsection{Multi-Relational Aggregation with Relation Gating}
 Transformed neighbor messages scaled by $\Omega_{ij}^{(r)}$ are accumulated across all incident relations:
@@ -215,17 +170,10 @@ Transformed neighbor messages scaled by $\Omega_{ij}^{(r)}$ are accumulated acro
     \mathbf{m}_j^{(l)} = \sum_{r \in \mathcal{R}} \beta_r \sum_{i \in \mathcal{N}_r(j)} \Omega_{ij}^{(r)} \mathbf{z}_{i, r}^{(l)}
     \label{eq:multi_rel_agg}
 \end{equation}
-where $\beta_r$ is an optional relation-importance gating coefficient computed via softmax over learnable relation logits:
-\begin{equation}
-    \beta_r = \frac{\exp(\omega_r)}{\sum_{r' \in \mathcal{R}} \exp(\omega_{r'})}
-\end{equation}
-In standard configuration ($\beta_r = 1$), messages are summed directly across relations.
+where $\beta_r$ is an optional relation-importance gating coefficient computed via softmax over learnable relation logits $\beta_r = \frac{\exp(\omega_r)}{\sum_{r' \in \mathcal{R}} \exp(\omega_{r'})}$. In standard configuration ($\beta_r = 1$), messages are summed directly across relations.
 
 \subsection{Self-Loop Projection, Skip Connections, and Layer Normalization}
-To preserve identity attributes and mitigate oversmoothing across multi-hop iterations, the layer incorporates a dedicated root node transformation $\mathbf{W}_{\text{root}}^{(l)} \in \mathbb{R}^{d_{l+1} \times d_l}$, residual skip additions, and layer normalization:
-\begin{equation}
-    \tilde{\mathbf{h}}_j^{(l+1)} = \mathbf{W}_{\text{root}}^{(l)} \mathbf{h}_j^{(l)} + \mathbf{m}_j^{(l)}
-\end{equation}
+To preserve identity attributes and mitigate oversmoothing across multi-hop iterations, the layer incorporates a dedicated root node transformation $\mathbf{W}_{\text{root}}^{(l)} \in \mathbb{R}^{d_{l+1} \times d_l}$ ($\tilde{\mathbf{h}}_j^{(l+1)} = \mathbf{W}_{\text{root}}^{(l)} \mathbf{h}_j^{(l)} + \mathbf{m}_j^{(l)}$), residual skip additions, and layer normalization:
 \begin{equation}
     \mathbf{h}_j^{(l+1)} = \mathbf{h}_j^{(l)} + \text{Dropout}\left(\text{ReLU}\left(\text{LayerNorm}\left(\tilde{\mathbf{h}}_j^{(l+1)}\right)\right), \, p\right)
     \label{eq:final_layer_norm}
@@ -242,15 +190,7 @@ In financial credit networks, fraud is heavily outnumbered by normal transaction
     \mathcal{L}_{\text{FL}}(p_t) = -\alpha_t \left(1 - p_t\right)^\gamma \log(p_t)
     \label{eq:focal_loss}
 \end{equation}
-where $p_t$ represents the model's estimated probability for the correct class:
-\begin{equation}
-    p_t = 
-    \begin{cases}
-        \hat{p}_i, & \text{if } y_i = 1 \\
-        1 - \hat{p}_i, & \text{if } y_i = 0
-    \end{cases}
-\end{equation}
-The focusing parameter $\gamma = 2.0$ dynamically downweights the loss assigned to easily classified benign nodes, concentrating backpropagated gradients on hard, ambiguous, and camouflaged fraud nodes. The class-weighting factor $\alpha = 0.75$ balances minority illicit node representation.
+where $p_t$ represents the model's estimated probability for the correct class ($p_t = \hat{p}_i$ if $y_i = 1$, and $1 - \hat{p}_i$ if $y_i = 0$). The focusing parameter $\gamma = 2.0$ dynamically downweights the loss assigned to easily classified benign nodes, concentrating backpropagated gradients on hard, ambiguous, and camouflaged fraud nodes. The class-weighting factor $\alpha = 0.75$ balances minority illicit node representation.
 
 \subsection{Validation-Calibrated Optimal Decision Thresholding}
 Relying on a static 0.5 decision cutoff creates a severe blind spot under heavy class imbalance, often yielding deceptively high accuracy while missing most actual fraudsters. Instead of sticking to an arbitrary cutoff, we perform a validation sweep after each epoch, choosing the decision threshold $\theta^*$ that maximizes minority-class Illicit-F1 on held-out validation data:

@@ -1,45 +1,35 @@
 \chapter{Literature Review and Theoretical Foundations}
 \label{ch:funda}
 
-Detecting organized financial fraud on credit and transaction networks is fundamentally a graph problem. Fraudsters rarely operate in isolation; they coordinate across accounts, share devices, and intentionally interact with legitimate users to blend in. In this chapter, we examine how graph neural approaches have evolved to tackle this challenge, moving from early camouflage-filtering models (2020--2021) to recent spectral and temporal frameworks (2022--2026). We then review ant colony optimization and stigmergy, showing where neural-ACO hybrids currently succeed in combinatorial routing and why integrating persistent pheromone memory into GNN message-passing addresses a major blind spot in financial fraud detection.
+Detecting collusive financial syndicates on credit graphs is a very different challenge from standard node classification. Fraudsters do not act alone—they share IP addresses, rotate second-hand devices, and deliberately transact with honest borrowers to mask their tracks. In this chapter, we trace the progression of graph-based anti-fraud methods from 2020 through 2026, pointing out why early pruning heuristics and newer spectral filters still struggle against multi-hop camouflage. We then examine ant colony stigmergy, looking at how neural-heuristic hybrids have solved combinatorial routing, and explain why adapting continuous pheromone memory into message passing offers a practical solution for lending fraud.
 
 \section[GNN-Based Fraud Detection]{\textbf{GNN-Based Fraud Detection (Survey 2020--2026)}}
 \label{sec:gnn_fraud_survey}
 
 \subsection{Foundational Fraud GNN Architectures (2020--2021)}
-Applying standard Graph Convolutional Networks (GCN) \cite{kipf2017semi} or GraphSAGE \cite{hamilton2017inductive} directly to transaction networks runs into an immediate conflict with real-world fraud behavior. Standard message passing assumes homophily---that connected nodes share similar attributes and labels. In financial networks, however, organized syndicates intentionally violate this rule. Fraudulent borrowers deliberately connect to legitimate accounts (topological camouflage) and mimic normal transaction sizes (feature camouflage). When a standard GCN averages across these mixed neighborhoods, anomaly signals wash out, pulling fraudulent embeddings straight into the benign majority cluster.
+When we started this project, our first step was seeing how vanilla GNNs perform on financial networks. Standard message-passing architectures like GCN \cite{kipf2017semi} and GraphSAGE \cite{hamilton2017inductive} are built on the core assumption of homophily: connected nodes usually share the same class and feature characteristics. On transaction networks, organized fraud rings intentionally break this assumption. Fraudsters inject camouflage links to verified benign users (topological camouflage) and mimic normal spending sizes (feature camouflage). When a plain GCN simply averages across these mixed connections, the fraud signal quickly washes out into the benign majority.
 
-Between 2020 and 2021, several architectures emerged to tackle this issue:
+Between 2020 and 2021, several specialized architectures were introduced to counter this behavior:
 
-\textbf{Reinforcement Learning and Neighborhood Pruning:} Dou et al. developed \textbf{CARE-GNN} (KDD 2020) \cite{dou2020enhancing}, one of the first models to target camouflage on multi-relational graphs. Their architecture combines relation-aware attention with a multi-agent Reinforcement Learning (RL) controller. For each relation, the RL policy adjusts a threshold $p^{(r, l)}$ based on feature distance $\mathcal{D}(h_u, h_v)$, dropping neighbors that fall below the cutoff:
-\begin{equation}
-    p^{(r, l)} \leftarrow p^{(r, l)} + \Delta p^{(r, l)} \quad \text{via RL policy gradient}
-\end{equation}
-While effective against obvious feature discrepancies, CARE-GNN makes greedy, instantaneous filtering choices in each forward pass. Because it maintains no cumulative trail memory from one epoch to the next, multi-hop structural evidence cannot build up over time. In a complementary effort, Liu et al. introduced \textbf{PC-GNN} (WWW 2021) \cite{liu2021pick} to address extreme class imbalance through a ``Pick and Choose'' sampling strategy. PC-GNN oversamples fraud instances and prunes uninformative benign neighbors during mini-batch generation. However, it still relies on surface feature similarity, which falters when fraudsters forge convincing profile attributes.
+\textbf{Reinforcement Learning Filtering (CARE-GNN):} Dou et al. \cite{dou2020enhancing} pioneered multi-relational camouflage defense with CARE-GNN. Their system combines relation-aware attention with multi-agent reinforcement learning. For every relation type, an RL controller learns an optimal threshold $p^{(r, l)}$ based on feature distance $\mathcal{D}(h_u, h_v)$, dropping neighbor connections that fall below the boundary ($p^{(r, l)} \leftarrow p^{(r, l)} + \Delta p^{(r, l)}$ via policy gradients). While CARE-GNN handles obvious feature mismatches reasonably well, its pruning decisions are greedy and localized to single epochs. Because it does not preserve structural evidence from one epoch to the next, multi-hop ring patterns cannot accumulate over time.
 
-\textbf{Spectral Filtering and Degree Regularization:} Tang et al. re-examined graph camouflage from a frequency-domain angle with \textbf{BWGNN} (ICDM 2021) \cite{tang2021rethinking}. On homophilic graphs, the graph Laplacian is dominated by smooth low-frequency signals. Camouflage links, by contrast, create sharp feature jumps that appear as high-frequency anomalies. BWGNN isolates these jumps using a spectral Beta Wavelet filter:
-\begin{equation}
-    h_i^{(l+1)} = \sum_{k=0}^K \beta_k \cdot \mathbf{L}^k h_i^{(l)}
-\end{equation}
-While BWGNN captures localized heterophilic transitions effectively, it assumes a static graph topology and has no mechanism to trace multi-hop fraud rings across epochs. Around the same time, Zhang et al. proposed \textbf{FRAUDRE} (ICDM 2021) \cite{zhang2021fraudre} to penalize nodes that exploit dense multi-relational connectivity to dilute anomaly signals, pairing this with a cost-sensitive reweighting loss.
+\textbf{Oversampling and Subgraph Filtering (PC-GNN):} To handle class imbalance alongside camouflage, Liu et al. introduced PC-GNN \cite{liu2021pick}. PC-GNN balances training mini-batches by oversampling minority fraud nodes and filtering out uninformative benign neighbors. However, its neighbor selector relies primarily on surface attribute similarity. When fraudsters craft convincing profile features, PC-GNN struggles to tell camouflage edges apart from genuine relationships.
+
+\textbf{Frequency-Domain Filtering (BWGNN):} Tang et al. looked at graph camouflage through spectral analysis with BWGNN \cite{tang2021rethinking}. On normal homophilic graphs, the graph Laplacian consists mainly of smooth low-frequency signals. Camouflage connections create abrupt feature discrepancies that manifest as high-frequency noise. BWGNN targets these localized anomalies using a Beta Wavelet band-pass filter, $h_i^{(l+1)} = \sum_{k=0}^K \beta_k \cdot \mathbf{L}^k h_i^{(l)}$. While effective at capturing local heterophily, BWGNN assumes a static graph and cannot trace multi-hop fraud rings across dynamic updates. Around the same time, Zhang et al. proposed FRAUDRE \cite{zhang2021fraudre} to penalize nodes that exploit dense multi-relational links to evade detection, pairing this with a cost-sensitive objective.
 
 \subsection{Modern Fraud GNN Architectures (2022--2026)}
-Between 2022 and 2026, research progressed toward explicitly modeling low-homophily topologies, capturing collective group interactions, and handling noisy temporal streams:
+From 2022 to 2026, research shifted toward explicitly modeling low-homophily graphs, capturing multi-account group dynamics, and dealing with streaming transaction logs:
 
-\textbf{Heterophily Disentanglement and Group Transformers:} Shi et al. proposed \textbf{H2-FDetector} (WWW 2022) \cite{shi2022h2}, separating neighbor aggregation into two distinct streams: label-consistent (homophilic) and label-divergent (heterophilic) connections:
-\begin{equation}
-    h_i = \text{CONCAT}\left(h_i^{\text{homo}}, h_i^{\text{hetero}}\right)
-\end{equation}
-Wang et al. moved beyond pairwise edges with \textbf{GAGA} (WWW 2023) \cite{wang2023gaga}, employing a group aggregation transformer to detect synchronized collective behaviors across accounts. While powerful, computing dense attention across large user groups introduces high memory and computational overhead.
+\textbf{Disentanglement and Group Attention:} Shi et al. developed H2-FDetector \cite{shi2022h2}, splitting neighbor aggregation into two parallel streams: one for label-consistent homophilic edges and one for label-divergent heterophilic edges, merging them through concatenation ($h_i = \text{CONCAT}\left(h_i^{\text{homo}}, h_i^{\text{hetero}}\right)$). Taking a different route, Wang et al. proposed GAGA \cite{wang2023gaga}, using a group aggregation transformer to spot synchronized collusion across user groups. However, calculating dense all-to-all attention across large groups demands heavy GPU memory and scales poorly on large networks.
 
-\textbf{Dynamic Streams and Adversarial Defense:} In more recent literature, Zhang et al. introduced \textbf{MTPNet} (IEEE TIFS 2025) \cite{mtpnet2025} for continuous transaction streams, partitioning logs into multi-scale time windows with temporal attention. However, attention weights are still recomputed independently in every pass without a persistent structural trace. Wei and Lee developed \textbf{THG-OAFN} (2025) \cite{wei2025internet}, combining temporal heterogeneous graphs with GraphSMOTE oversampling on YelpChi. Generating synthetic nodes in credit graphs, however, can introduce artificial topological structures that do not match genuine borrower dynamics. Wu et al. (IEEE TKDE 2026) \cite{wu2026defending} used a generative graph autoencoder to defend against adversarial edge additions, improving robustness by 3\%--7\% but incurring quadratic $\mathcal{O}(N^2)$ candidate-edge costs. Ju et al. (IEEE TPAMI 2026) \cite{ju2026survey} proved mathematically that standard GNN aggregation degrades exponentially once camouflage noise exceeds 20\%, highlighting the practical need for persistent edge-weight regularization across training cycles.
+\textbf{Temporal Streams and Adversarial Camouflage:} For streaming financial data, Zhang et al. introduced MTPNet (IEEE TIFS 2025) \cite{mtpnet2025}, slicing transaction histories into sliding temporal windows with attention. Yet MTPNet recomputes attention weights fresh in each window without maintaining a persistent trail across training cycles. Wei and Lee proposed THG-OAFN (2025) \cite{wei2025internet}, combining heterogeneous graph modeling with GraphSMOTE oversampling on YelpChi. However, generating synthetic nodes in financial graphs can introduce unrealistic graph topologies that do not reflect actual borrower behavior. Wu et al. (IEEE TKDE 2026) \cite{wu2026defending} used a generative graph autoencoder to counter adversarial edge injections, boosting robustness by 3\%--7\% but suffering from quadratic $\mathcal{O}(N^2)$ candidate edge costs. More recently, Ju et al. (IEEE TPAMI 2026) \cite{ju2026survey} proved theoretically that standard GNN aggregation degrades rapidly once camouflage noise exceeds 20\%, underlining the practical necessity for persistent structural regularization across training rounds.
 
 \subsection{Base Review Paper: Cheng et al. (Frontiers of Computer Science 2025)}
-Our work draws direct guidance from the comprehensive survey by \textbf{Cheng et al. (2025)} \cite{cheng2025graph}, titled \textit{``Graph Neural Networks for Financial Fraud Detection: A Review''}, published in \textit{Frontiers of Computer Science}. Examining over 100 anti-fraud architectures across credit lending, e-commerce, and money laundering, the authors highlighted three practical observations:
+Our research design was guided by the comprehensive survey by \textbf{Cheng et al. (2025)} \cite{cheng2025graph}, titled \textit{``Graph Neural Networks for Financial Fraud Detection: A Review''}, published in \textit{Frontiers of Computer Science}. Covering over one hundred anti-fraud models across digital lending, e-commerce, and transaction monitoring, the authors highlighted three key takeaways:
 \begin{enumerate}
-    \item \textbf{Camouflage Drops Performance Significantly:} When fraud syndicates inject 20\% to 40\% benign connections, Macro-F1 scores for standard models (including CARE-GNN and PC-GNN) fall by 25\% to 42\%.
-    \item \textbf{Importance of Multi-Relational Benchmarks:} Realistic evaluation requires typed relational networks. Datasets like \textbf{YelpChi} (with R-U-R, R-T-R, and R-S-R meta-paths) and \textbf{Amazon} (with U-P-U, U-S-U, and U-V-U relations) represent the standard benchmark testbeds.
-    \item \textbf{Need for Persistent, Bio-Inspired Priors:} The survey noted that purely gradient-based backpropagation easily settles into local camouflage traps. The authors encouraged exploring \textit{adaptive bio-inspired heuristics and persistent structural prior mechanisms} capable of re-weighting edges across training cycles without quadratic computational overhead. Our ACO-GNN architecture was developed directly in response to this recommendation.
+    \item \textbf{Camouflage Severely Degrades Standard Models:} When fraudsters introduce between 20\% and 40\% benign connections, Macro-F1 scores for conventional models (including CARE-GNN and PC-GNN) drop by 25\% to 42\%.
+    \item \textbf{Need for Multi-Relational Benchmark Testing:} Realistic evaluation requires typed relational networks. Datasets like \textbf{YelpChi} (with R-U-R, R-T-R, and R-S-R meta-paths) and \textbf{Amazon} (with U-P-U, U-S-U, and U-V-U relations) represent the standard benchmark testbeds.
+    \item \textbf{Need for Persistent, Bio-Inspired Priors:} The authors observed that pure gradient descent frequently gets trapped in camouflage minima. They explicitly called for research into \textit{adaptive bio-inspired heuristics and persistent structural prior mechanisms} capable of re-weighting edges across training cycles without quadratic computational overhead. Our ACO-GNN architecture was developed directly to answer this call.
 \end{enumerate}
 
 % ------------------------------------------------------------------------------
@@ -48,22 +38,12 @@ Our work draws direct guidance from the comprehensive survey by \textbf{Cheng et
 \section[Ant Colony Optimization in Graph Learning]{\textbf{Ant Colony Optimization and Stigmergic Learning}}
 \label{sec:aco_background}
 
-Ant Colony Optimization stems from Marco Dorigo's research in the early 1990s \cite{dorigo1992optimization, dorigo1996ant} on how biological ant colonies find shortest paths without central leadership. Ants communicate indirectly by modifying their environment---a mechanism known as \textit{stigmergy}. When an ant finds food, it marks its return path with volatile chemical secretions called \textbf{pheromones}. Other ants sense these deposits and are more likely to follow paths with stronger scents. Because shorter paths can be completed more quickly, ants traverse them more frequently, laying down pheromones faster than the chemical can evaporate. Meanwhile, longer paths and random detours gradually dry up. Stigmergy effectively provides a decentralized, long-term spatial memory.
+Ant Colony Optimization originated in Marco Dorigo's work in the 1990s \cite{dorigo1992optimization, dorigo1996ant}, inspired by how real ant colonies navigate terrain without any central leader. Ants communicate indirectly by altering their local environment—a principle known as \textit{stigmergy}. When a foraging ant finds food, it deposits volatile chemical markers called \textbf{pheromones} along its return path. Other ants sense these markers and preferentially follow stronger scent trails. Because shorter paths can be completed more quickly, ants travel along them more frequently, reinforcing pheromones faster than the chemical can evaporate. Suboptimal paths and random detours receive little reinforcement and dry up. Stigmergy essentially acts as a decentralized, long-term spatial memory.
 
 \subsection{Foundational Metaheuristic Dynamics}
-In canonical Ant System (AS) and the Max-Min Ant System (MMAS) \cite{stutzle2000max}, an artificial ant chooses its next hop $j \in \mathcal{N}(i)$ using a stochastic rule that balances historical trail strength against immediate heuristic desirability:
-\begin{equation}
-    P_{ij}^{(k)} = \frac{\left[\tau_{ij}\right]^\alpha \cdot \left[\eta_{ij}\right]^\beta}{\sum_{l \in \mathcal{N}(i)} \left[\tau_{il}\right]^\alpha \cdot \left[\eta_{il}\right]^\beta}
-    \label{eq:canonical_aco_transition}
-\end{equation}
-where $\tau_{ij}$ represents the pheromone intensity on edge $(i, j)$, and $\eta_{ij}$ provides an instantaneous heuristic estimate (such as inverse distance in routing). The exponents $\alpha$ and $\beta$ adjust how much the ant relies on accumulated collective memory versus local cues.
+In canonical Ant System (AS) and the Max-Min Ant System (MMAS) \cite{stutzle2000max}, an artificial ant chooses its next hop $j \in \mathcal{N}(i)$ using a stochastic rule that balances historical trail strength against immediate heuristic desirability, $P_{ij}^{(k)} = \frac{\left[\tau_{ij}\right]^\alpha \cdot \left[\eta_{ij}\right]^\beta}{\sum_{l \in \mathcal{N}(i)} \left[\tau_{il}\right]^\alpha \cdot \left[\eta_{il}\right]^\beta}$, where $\tau_{ij}$ represents the pheromone intensity on edge $(i, j)$, and $\eta_{ij}$ provides an instantaneous heuristic estimate (such as inverse distance in routing). The exponents $\alpha$ and $\beta$ adjust how much the ant relies on accumulated collective memory versus local cues.
 
-Without continuous decay, the earliest paths discovered would permanently dominate the graph. To maintain exploration flexibility, trails evaporate at a constant rate $\rho \in (0, 1)$ after each traversal round:
-\begin{equation}
-    \tau_{ij} \leftarrow (1 - \rho) \cdot \tau_{ij} + \sum_{k=1}^{M} \Delta \tau_{ij}^{(k)}
-    \label{eq:canonical_evaporation}
-\end{equation}
-where $\Delta \tau_{ij}^{(k)}$ denotes the pheromone increment left by ant $k$. In MMAS, St{\"u}tzle and Hoos placed explicit bounds $[\tau_{\min}, \tau_{\max}]$ on every trail. This simple bound is essential in graph learning: it prevents unvisited edges from dropping to absolute zero (trail starvation) and stops dominant paths from monopolizing attention (trail saturation).
+Without continuous decay, the earliest paths discovered would permanently dominate the graph. To maintain exploration flexibility, trails evaporate at a constant rate $\rho \in (0, 1)$ after each traversal round ($\tau_{ij} \leftarrow (1 - \rho) \cdot \tau_{ij} + \sum_{k=1}^{M} \Delta \tau_{ij}^{(k)}$), where $\Delta \tau_{ij}^{(k)}$ denotes the pheromone increment left by ant $k$. In MMAS, St{\"u}tzle and Hoos placed explicit bounds $[\tau_{\min}, \tau_{\max}]$ on every trail. This simple bound is essential in graph learning: it prevents unvisited edges from dropping to absolute zero (trail starvation) and stops dominant paths from monopolizing attention (trail saturation).
 
 \begin{figure}[!htbp]
 \centering
@@ -155,33 +135,33 @@ where $\Delta \tau_{ij}^{(k)}$ denotes the pheromone increment left by ant $k$. 
 
 \end{tikzpicture}%
 }
-\caption[Conceptual Stigmergic Disentanglement of Collusive Fraud Rings]{Conceptual mechanism of biological stigmergy and pheromone evaporation under deceptive camouflage. (a) In the raw transaction graph, collusive fraudsters ($F_1$--$F_4$) disguise their connectivity by injecting camouflage edges to benign accounts ($B_1, B_2$). (b) Over iterative training epochs, correlated fraud predictions trigger pheromone reinforcement along ring edges ($\tau \to \tau_{\max}$), whereas non-reinforced camouflage pathways continuously evaporate ($(1-\rho)\tau \to \tau_{\min}$), isolating the collusive syndicate without heuristic edge pruning.}
+\caption[Conceptual Stigmergic Disentanglement of Collusive Fraud Rings]{Conceptual mechanism of biological stigmergy and pheromone evaporation under deceptive camouflage. (a) Initial network: collusive fraudsters ($F_1$--$F_4$) add camouflage links to benign users ($B_1, B_2$) to blend in. (b) Across training rounds, mutual risk signals reinforce ring connections ($\tau \to \tau_{\max}$), while unreinforced camouflage paths decay ($(1-\rho)\tau \to \tau_{\min}$), isolating the syndicate without brittle pruning heuristics.}
 \label{fig:stigmergy_camouflage_concept}
 \end{figure}
 
-Figure~\ref{fig:stigmergy_camouflage_concept} illustrates how this continuous reinforcement and evaporation mechanism is adapted to counter adversarial camouflage in financial transaction networks.
+Figure~\ref{fig:stigmergy_camouflage_concept} sketches how this continuous reinforcement and evaporation process operates in practice to counter adversarial camouflage on financial graphs.
 
 \subsection{Neural Combinatorial Optimization Hybrids}
-Deep learning has increasingly been combined with ant systems in combinatorial optimization:
+Recent machine learning work has explored combining neural nets with ant systems, but almost exclusively for routing problems:
 \begin{itemize}
-    \item \textbf{DeepACO (NeurIPS 2023)} \cite{ye2023deepaco}: Targets NP-hard routing problems like the TSP, CVRP, and Orienteering. Instead of computing static geometric heuristics $\eta(i, j)$, DeepACO uses a GNN to generate learned heuristic matrices from node embeddings, which artificial ants sample to build routes.
-    \item \textbf{GFACS (ICLR 2024)} \cite{gfacs2024}: Incorporates Graph Flow Attention into Ant Colony Systems, parameterizing construction graphs dynamically to solve constrained routing tasks.
-    \item \textbf{NeuFACO (2025)} \cite{neufaco2025}: Applies neural-guided fast ACO algorithms to dynamic vehicle routing under real-time demand shifts.
+    \item \textbf{DeepACO (NeurIPS 2023)} \cite{ye2023deepaco}: Tackles classical NP-hard routing tasks like TSP, CVRP, and Orienteering. Rather than relying on fixed distance heuristics $\eta(i, j)$, DeepACO trains a GNN to output heuristic matrices from node embeddings, guiding artificial ants as they construct tours.
+    \item \textbf{GFACS (ICLR 2024)} \cite{gfacs2024}: Integrates Graph Flow Attention into Ant Colony Systems, dynamically updating search graphs to solve constrained vehicle routing problems.
+    \item \textbf{NeuFACO (2025)} \cite{neufaco2025}: Uses neural-guided fast ACO implementations to tackle dynamic vehicle routing under shifting real-time demand.
 \end{itemize}
 
 \subsection{The Unexplored Research Gap in Financial Fraud Detection}
-All of the hybrid models above focus strictly on \textit{discrete combinatorial optimization}---selecting or ordering an optimal subset of vertices or edges. This leaves a clear opening:
+Noticeably, every existing neural-ACO model focuses purely on \textit{discrete combinatorial optimization}---selecting or ordering subsets of vertices in routing tasks. This revealed an open opportunity:
 \begin{quote}\small\raggedright
-    \textit{Prior to this project, continuous stigmergic pheromone dynamics had not been integrated directly into Graph Neural Network neighborhood message passing for fraud detection or graph anomaly recognition.}
+    \textit{Prior to our work, continuous stigmergic pheromone dynamics had never been adapted into the message-passing equations of Graph Neural Networks for financial fraud detection or graph anomaly recognition.}
 \end{quote}
-Existing anti-fraud graph models depend on three broad strategies:
+Current anti-fraud graph models rely on three main paradigms:
 \begin{itemize}
-    \item \textbf{Reinforcement Learning Filtering (e.g., CARE-GNN \cite{dou2020enhancing}):} Uses multi-agent RL (specifically Bernoulli multi-armed bandits) to pick a neighbor filtering threshold per relation. While this drops local feature outliers, the policy acts greedily in each epoch without cross-epoch structural memory.
-    \item \textbf{Spectral Wavelet Filtering (e.g., BWGNN \cite{tang2021rethinking}):} Applies localized band-pass filters to isolate high-frequency feature shifts caused by camouflage. However, spectral methods treat graph edges uniformly and do not track persistent multi-hop transaction patterns over dynamic updates.
+    \item \textbf{Reinforcement Learning Filtering (e.g., CARE-GNN \cite{dou2020enhancing}):} Uses multi-agent RL (specifically Bernoulli multi-armed bandits) to select neighbor filtering cutoffs for each relation. While this weeds out obvious feature outliers, the policy acts greedily within each epoch and carries no structural memory across epochs.
+    \item \textbf{Spectral Wavelet Filtering (e.g., BWGNN \cite{tang2021rethinking}):} Applies localized band-pass wavelet filters to catch high-frequency feature shifts caused by camouflage. However, spectral methods treat graph edges uniformly and cannot track persistent multi-hop transaction patterns over dynamic updates.
     \item \textbf{Transformer Group Aggregations (e.g., GAGA \cite{wang2023gaga}):} Computes dense all-to-all attention to bypass heterophily, incurring quadratic $\mathcal{O}(N^2)$ computational complexity and losing edge-relational inductive biases.
 \end{itemize}
 
-None of these frameworks maintain an \textbf{iterative persistent structural memory} that accumulates collective evidence over training epochs while evaporating deceptive connections. By using stigmergic pheromone trails as an inductive structural prior alongside parametric neural attention, our framework directly bridges this gap.
+None of these architectures maintain an \textbf{iterative persistent structural memory} that accumulates collective evidence over training epochs while evaporating deceptive connections. By using stigmergic pheromone trails as an inductive structural prior alongside parametric neural attention, our framework directly bridges this gap.
 
 
 % ------------------------------------------------------------------------------
@@ -220,9 +200,9 @@ Wu et al. \cite{wu2026defending} & IEEE TKDE 2026 & Heterogeneous & Generative A
 \end{tabularx}
 \end{table}
 
-This comparison highlights three primary research gaps:
+This systematic comparison highlights three main research gaps:
 \begin{enumerate}
-    \item \textbf{Memoryless GNN Message Passing:} Current fraud GNNs compute edge aggregation weights from scratch at every epoch based solely on current node embeddings $h_u, h_v$. When fraudsters disguise their profile attributes, the attention mechanism falls for the same deception every round. The network has no cumulative trail that remembers persistent suspicious multi-hop connectivity.
-    \item \textbf{Risks of Binary Edge Pruning:} Defenses that rely on hard binary edge pruning ($e_{ij} \in \{0, 1\}$), such as CARE-GNN, risk cutting critical bridge edges that connect multi-hop fraud syndicates spanning 3 to 5 hops.
-    \item \textbf{Unexplored Potential of Continuous Stigmergy:} While ant colony principles have succeeded in discrete routing problems, continuous stigmergic reinforcement and evaporation dynamics have not previously been adapted into the continuous message aggregation formulas of Graph Neural Networks.
+    \item \textbf{Memoryless GNN Message Passing:} Existing fraud GNNs compute neighbor attention weights from scratch at every epoch based purely on current node representations $h_u, h_v$. When fraudsters disguise their profile features, the attention mechanism is misled round after round. The network has no cumulative trail that remembers persistent suspicious multi-hop connectivity.
+    \item \textbf{Risks of Hard Binary Edge Pruning:} Defenses relying on hard binary edge drop decisions ($e_{ij} \in \{0, 1\}$), such as CARE-GNN, frequently cut critical bridge edges that connect multi-hop fraud syndicates spanning 3 to 5 hops, blinding the model to the broader ring.
+    \item \textbf{Unexplored Potential of Continuous Stigmergy:} While ant colony principles have proven effective in discrete routing problems, continuous stigmergic reinforcement and evaporation dynamics have not previously been adapted into the continuous message aggregation formulas of Graph Neural Networks.
 \end{enumerate}

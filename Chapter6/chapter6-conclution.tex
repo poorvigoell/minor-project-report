@@ -37,11 +37,7 @@ To improve our model further we could consider:
 
 \begin{enumerate}
     \item \textbf{Relation Specific Gate Weights:}
-    Rather than one global blending weight, relation specific weights could be implemented:
-    \begin{equation}
-        \omega_{ij}^{(r)} = \sigma(\theta_r) \cdot \alpha_{ij}^{(r)} + (1 - \sigma(\theta_r)) \cdot \hat{\tau}_{ij}^{(r)}
-    \end{equation}
-    This allows for high-homophily relations to be heavily influenced by trail information, but for noisy relations to rely mostly on attention based features.
+    Rather than one global blending weight, relation specific weights could be implemented: $\omega_{ij}^{(r)} = \sigma(\theta_r) \cdot \alpha_{ij}^{(r)} + (1 - \sigma(\theta_r)) \cdot \hat{\tau}_{ij}^{(r)}$. This allows for high-homophily relations to be heavily influenced by trail information, but for noisy relations to rely mostly on attention based features.
     \item \textbf{Continuously Decaying Trails:}
     By adding continuously decaying exponential functions ($\tau_{ij}(t) = \tau_{ij}(t_0) \cdot e^{-\lambda_t(t - t_0)}$), it would be possible for trails to be updated asynchronously depending on the exact time between transactions in datasets such as DGraphFin.
     \item \textbf{Improved Speed with CUDA:}
