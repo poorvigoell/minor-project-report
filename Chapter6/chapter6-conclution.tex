@@ -1,66 +1,66 @@
 \chapter{Conclusion and Future Scope}
 \label{ch:conclusion}
 
-In this final chapter, we look back at what our project accomplished, reflect on the practical limitations we encountered, outline where the research can go next, and share what we learned along the way.
+In this final chapter, we summarize what our project accomplished, discuss the practical limitations and challenges we ran into, outline promising directions for future work, and reflect on the key learning outcomes from our work.
 
 \section[Summary of Achievements]{\textbf{Summary of Achievements}}
 \label{sec:achievements_summary}
 
-Over the course of this minor project, we designed, implemented, and benchmarked \textbf{ACO-GNN}, integrating ant colony stigmergy into graph message passing to spot coordinated loan fraud rings. The project's main outcomes include:
+We successfully implemented ACO-GNN to detect loan fraud rings. Key achievements include:
 
 \begin{itemize}
-    \item \textbf{Theoretical Formulation of Stigmergic Aggregation:} We derived a dual-attention mechanism ($\lambda \alpha_{ij} + (1-\lambda)\hat{\tau}_{ij}$) that blends local feature self-attention with persistent pheromone trails. By pairing exponential trail decay with risk-based reinforcement on suspicious connections, the model establishes a structural memory that naturally suppresses deceptive camouflage links over training epochs.
-    \item \textbf{Engineering Optimizations and Benchmark Validation:} We resolved memory bottlenecks on dense graphs by approximating edge trails through node potentials ($83.7\times$ memory reduction on YelpChi) and computing destination-grouped scatter operations natively on CPU. Across five random seeds on YelpChi, ACO-GNN outperformed our reproduced CARE-GNN baseline by $+9.3\%$ in Macro-F1 ($0.7014 \pm 0.0071$ vs.\ $0.6416 \pm 0.0038$) and $+22.1\%$ in minority Illicit-F1, while matching CARE-GNN on Amazon after user-level feature normalization.
-    \item \textbf{Camouflage Resilience and Dynamic Streaming:} Under stress testing with synthetic camouflage noise up to 50\%, ACO-GNN held its Macro-F1 above 0.76, whereas standard GAT collapsed to 0.13. Dynamic streaming simulations confirmed that the stigmergic trail carries forward structural history across incoming transaction batches without requiring full model retraining.
+    \item \textbf{Dual Weighting:} We implemented a dual weighting scheme ($\lambda \alpha_{ij} + (1-\lambda)\hat{\tau}_{ij}$), balancing attention weights with persistent trail information. By reducing trails on infrequently reinforced edges, and adding trails to suspected fraudulent paths, structural memory is created. With increasing epochs, this causes a damping effect on fraudulent relationships masked by camouflage.
+    \item \textbf{Optimised Memory:} We optimised our model to train on dense graphs using a standard CPU. We reduced memory requirements by $83.7\times$ on YelpChi (node-based potentials in place of edge potentials) and implemented native grouped scattering within PyTorch. On YelpChi with 5 fixed random seeds, our ACO-GNN model achieved a 9.3\% improvement in Macro-F1 score over our reproduced CARE-GNN baseline ($0.7014 \pm 0.0071$ vs.\ $0.6416 \pm 0.0038$) and a 22.1\% improvement in minority class Illicit-F1 ($0.5028$ vs.\ $0.4119$). It achieved the same performance as the CARE-GNN model on Amazon ($0.9041$ vs.\ $0.9015$), once row normalisation was implemented.
+    \item \textbf{Robustness to Camouflage:} Even in cases of heavy artificial camouflage (up to 50\%), our model maintains a Macro-F1 score above 0.76. Vanilla GAT suffers from this issue, achieving only a Macro-F1 score of 0.13. Furthermore, in our simulation of a dynamic lending scenario, we are able to maintain structural historical information in the trails without retraining from scratch as new transaction batches are added.
 \end{itemize}
 
-\section[Limitations of the Current Work]{\textbf{Limitations of the Current Work}}
+\section[Limitations]{\textbf{Limitations}}
 \label{sec:limitations}
 
-Although ACO-GNN achieved strong gains on YelpChi and synthetic data, several practical limitations should be noted:
+Despite promising results on YelpChi and synthetic graphs, our model has the following limitations:
 
 \begin{enumerate}
-    \item \textbf{Reliance on Relational Homophily:}
-    Pheromone reinforcement works best when confirmed edges primarily link nodes of the same class. While YelpChi has high homophily ($\sim$91\% on user accounts), Amazon's relations exhibit homophily as low as 5\%--17\%, where fraud accounts and normal shoppers mix heavily. This introduces noise into pheromone updates and limits improvements over standard baselines.
-    \item \textbf{RAM Consumption on Dense Streaming Graphs:}
-    While our static model compresses trails into node potentials, dynamic streaming maintains edge-level trails $\tau \in \mathbb{R}^{|\mathcal{E}|}$. Scaling this to industrial networks with tens of millions of streaming transactions will require edge chunking or distributed memory.
-    \item \textbf{Lack of Physical Timestamps in Standard Benchmarks:}
-    Neither YelpChi nor Amazon includes exact wall-clock timestamps in public releases, forcing us to simulate streaming through sequential batch chunks rather than true calendar progression.
-    \item \textbf{Baseline Scope:}
-    We benchmarked extensively against CARE-GNN, GAT, GCN, and tree models, but direct comparisons with 2024--2026 models like SEC-GFD or DGA-GNN remain future work.
+    \item \textbf{Sensitive to homophily:}
+    The trail system only performs well when links in the graph predominantly exist between nodes of the same type. On YelpChi (homophily $\sim$91\%) performance is good. However, on Amazon, homophily varies between 5\%--17\%. The fraud and benign nodes are highly mixed, causing noise in the trails being added. Thus, significant improvements in performance over existing models may not be observed.
+    \item \textbf{Memory Usage In Dynamic Simulation:}
+    Whilst the static version of the model had reduced memory usage (using node potentials), the dynamic version of the model does require edge-based trails $\tau \in \mathbb{R}^{|\mathcal{E}|}$ to be recorded. If this model was implemented on very large graphs with millions of streamed transactions, edge batching or distributed memory solutions would be required.
+    \item \textbf{No Real Time Information:}
+    Neither the YelpChi or Amazon dataset have real times associated with the transactions. To simulate a dynamic setting, we had to create synthetic sequential chunks of data.
+    \item \textbf{Baseline Limitations:}
+    We compared our model to other models including CARE-GNN, standard GNNs (GCN/GAT/GraphSAGE) and tree based models (XGBoost/LightGBM). It would be interesting to compare with newer models such as SEC-GFD and DGA-GNN in future.
 \end{enumerate}
 
-\section[Future Scope]{\textbf{Future Scope}}
+\section[Future Work]{\textbf{Future Work}}
 \label{sec:future_scope}
 
-Building on these findings, we plan to explore the following research directions:
+To improve our model further we could consider:
 
 \begin{enumerate}
-    \item \textbf{Dynamic Relation-Specific Pheromone Gating:}
-    Instead of sharing a single blending parameter $\lambda$ across all relation types, learning a separate gating coefficient per relation:
+    \item \textbf{Relation Specific Gate Weights:}
+    Rather than one global blending weight, relation specific weights could be implemented:
     \begin{equation}
         \omega_{ij}^{(r)} = \sigma(\theta_r) \cdot \alpha_{ij}^{(r)} + (1 - \sigma(\theta_r)) \cdot \hat{\tau}_{ij}^{(r)}
     \end{equation}
-    will allow the network to rely heavily on pheromones for high-homophily relations while falling back to attention on noisy relations.
-    \item \textbf{Continuous-Time Pheromone Decay on Streaming Graphs:}
-    Implementing continuous exponential decay kernels ($\tau_{ij}(t) = \tau_{ij}(t_0) \cdot e^{-\lambda_t(t - t_0)}$) will enable genuine asynchronous updates on temporal networks like DGraphFin.
-    \item \textbf{GPU Acceleration with Custom CUDA Kernels:}
-    Porting our sparse scatter-add operations to dedicated CUDA kernels will accelerate training speeds, making full-graph evaluation on 100M+ edges practical.
-    \item \textbf{Pheromone Trails for Audit Forensics and Explainability:}
-    In banking and credit underwriting, explainability is essential for regulatory compliance. Pheromone trails could provide compliance teams with visual, auditable subgraphs showing exactly which paths alerted the model to an organized syndicate.
-    \item \textbf{Research Publication Preparation:}
-    The empirical and theoretical findings from this project will be synthesized into a paper manuscript targeted for submission to an IEEE/ACM conference or peer-reviewed journal.
+    This allows for high-homophily relations to be heavily influenced by trail information, but for noisy relations to rely mostly on attention based features.
+    \item \textbf{Continuously Decaying Trails:}
+    By adding continuously decaying exponential functions ($\tau_{ij}(t) = \tau_{ij}(t_0) \cdot e^{-\lambda_t(t - t_0)}$), it would be possible for trails to be updated asynchronously depending on the exact time between transactions in datasets such as DGraphFin.
+    \item \textbf{Improved Speed with CUDA:}
+    Dedicated CUDA kernels for the sparse add and softmax steps of our model would significantly improve training speed. We could then evaluate our models on much larger graphs.
+    \item \textbf{Subgraph Analysis:}
+    Within financial compliance, it is very important to provide explanations as to why an account was flagged. The trail information we learned could be used to identify risky subgraphs, so human analysts can obtain an auditable insight into potential fraud rings.
+    \item \textbf{Write Research Paper:}
+    We will write a research paper based on our methods, reproducibility of existing baselines and experimental results in order to submit to an appropriate workshop/conference.
 \end{enumerate}
 
-\section[Learning Outcomes of the Project]{\textbf{Learning Outcomes of the Project}}
+\section[Learning Outcomes]{\textbf{Learning Outcomes}}
 \label{sec:learning_outcomes}
 
-Working on this minor project provided valuable hands-on experience across multiple areas of machine learning and software engineering:
+Throughout this minor project we have gained valuable experience in real world machine learning:
 
 \begin{enumerate}
-    \item \textbf{Hands-on Graph Deep Learning:} We gained practical experience writing custom message-passing layers in PyTorch, handling multi-relational graphs via meta-paths, and debugging sparse tensor operations without relying on opaque black-box libraries.
-    \item \textbf{Integrating Swarm Intelligence with Neural Networks:} We learned how to combine non-differentiable bio-inspired heuristics with gradient-based neural networks, managing state updates outside the autograd graph to avoid memory leaks.
-    \item \textbf{Tackling Imbalanced and Adversarial Data:} We saw firsthand how real-world data issues (class imbalance and topological camouflage) break standard machine learning models, and learned how to mitigate them through focal loss, threshold tuning, and structural memory.
-    \item \textbf{Reproducible Experimental Methodology:} Reproducing CARE-GNN taught us the importance of controlling data splits, seed variation, and metric definitions. Averaging results across multiple seeds helped ensure our reported gains were genuine.
-    \item \textbf{Collaborative Engineering and Documentation:} Working as a team across data pipelines, baseline reproductions, and streaming simulations strengthened our ability to coordinate code and produce publication-ready documentation in \LaTeX.
+    \item \textbf{Implementing GNNs:} Implemented custom message passing layers in PyTorch, multi-relational meta-path graphs, and sparse tensor indexing in a non-black box way.
+    \item \textbf{Combining Heuristic Approaches with Neural Networks:} Understood how to combine bio-inspiration with gradient descent. We managed to maintain state outside of the autograd framework, so no memory leaks were encountered.
+    \item \textbf{Dealing with Imbalanced Data \& Noisy Graphs:} We have seen how badly class imbalance and camouflage connections can affect model performance, and how techniques such as focal loss, threshold tuning and evaporation can help.
+    \item \textbf{Careful Reproducibility of Existing Baselines:} When reproducing the CARE-GNN model we saw how important it was to choose appropriate data splits, random seeds and consistent evaluation metrics in order to achieve reliable results.
+    \item \textbf{Collaborative Work and Technical Writing:} We were able to split the work between data preparation, model creation and dynamic simulation, so we could work effectively as a team. We were able to write clear results in \LaTeX.
 \end{enumerate}

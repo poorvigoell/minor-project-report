@@ -4,7 +4,7 @@
 
 
 
-In this chapter, we walk through the practical implementation of the ACO-GNN codebase. We detail our module organization, present the step-by-step algorithms that power pheromone updates and threshold searches, explain how we compressed memory to run multi-million-edge graphs on standard CPU hardware, and verify our reproduction of the CARE-GNN baseline.
+Our code was divided into modules. We were able to implement efficient data loading, baseline models and dynamic data simulation. However, combining back propagation with the recursive nature of the ant updates proved challenging. Since we were using PyTorch to implement the model, back propagation caused computation graphs to become very large, and required large amounts of memory. In order to mitigate this issue, the trail calculations in the model were not included in the autograd.
 
 % ------------------------------------------------------------------------------
 % SECTION 4.1: MODULE-WISE ARCHITECTURAL DESCRIPTION
@@ -13,20 +13,19 @@ In this chapter, we walk through the practical implementation of the ACO-GNN cod
 \label{sec:module_design}
 \label{sec:module_description}
 
-The ACO-GNN codebase is organized into modular subsystems to make baseline comparison, dataset ingestion, and dynamic streaming straightforward and reproducible. Combining a neural forward pass with iterative swarm feedback creates an immediate engineering challenge: standard autograd graphs cannot retain history across epochs without running out of memory. We resolved this by isolating the pheromone engine outside the computational graph. Table~\ref{tab:repo_modules} outlines our repository layout and subsystem responsibilities.
+Three main choices were made in the implementation:
 
 \subsection{Subsystem Division and Architectural Principles}
-Three practical engineering principles guided our implementation:
 
 \begin{enumerate}
-    \item \textbf{Decoupled Neural-Stigmergic Execution:}
-    If pheromone updates were tracked inside PyTorch's automatic differentiation graph, gradient history would accumulate with every epoch, quickly causing memory crashes. We designed the \texttt{VectorizedACOEngine} (\path{src/aco/matrix_ant.py}) and \texttt{DynamicPheromoneEngine} (\path{src/simulation/dynamic_engine.py}) to operate strictly outside the autograd graph using \texttt{torch.no\_grad()}. Pheromone intensities and node potentials update as in-place state variables, keeping the memory footprint fixed at $\mathcal{O}(|\mathcal{V}|)$ throughout training.
+    \item \textbf{Decoupled Neural Stigmergy:}
+    Including ant updates in the auto grad framework caused large computation graphs and very large memory consumption in the model. In order to mitigate this issue, we placed ant calculations inside a \texttt{torch.no\_grad()} block (\path{src/aco/matrix_ant.py} and \path{src/simulation/dynamic_engine.py}). This allowed in-place updates of pheromone strengths and node potentials. As no additional memory was required during training, memory usage was constant at $\mathcal{O}(|\mathcal{V}|)$.
     
-    \item \textbf{Unified Multi-Relational Data Pipeline:}
-    Real-world fraud networks feature multiple relation types (e.g., shared user accounts, overlapping reviews, emergency contact references). Our \path{dataset_loader.py} module ingests YelpChi, Amazon, and DGraphFin into consistent sparse tensor representations. It enforces clean inductive splitting (60\% train, 20\% validation, 20\% test) using temporal timestamps or stratification to prevent information leakage. For controlled robustness experiments, \path{synthetic_generator.py} injects synthetic multi-hop rings (3 to 5 hops) with configurable camouflage ratios.
+    \item \textbf{Homogenous Multi Relational Data:}
+    In both the credit network and review network, multiple relations exist. For all 3 networks (YelpChi, Amazon and DGraphFin in \path{dataset_loader.py}) data was formatted to be in sparse tensors. Training, validation and testing data (60\%, 20\%, 20\%) was created from this data either using timestamping or stratification. This means data in testing sets will never be in training sets. We also implemented synthetic data (\path{synthetic_generator.py}) in order to allow very specific testing. Graphs can be created with fraud chains of lengths between 3--5. The amount of noisy camouflaged data can be changed.
 
-    \item \textbf{Modular Baseline Suite and Dynamic Streaming Harness:}
-    To ensure fair and reliable benchmarking, all baseline models---from tabular gradient boosting (XGBoost, LightGBM in \path{src/models/tree_baselines.py}) to standard GNNs (GCN, GAT, GraphSAGE in \path{src/models/baselines.py}) and ACO-GNN (\path{src/models/aco_gnn.py})---share identical training loops, evaluation metrics, and loss functions. The streaming module (\path{src/simulation/}) generates incremental graph batches to test online adaptation over time.
+    \item \textbf{Modular Baseline Models and Dynamic Data:}
+    All baseline models (tree models (XGBoost/LightGBM in \path{src/models/tree_baselines.py}) and GNN models (GCN/GAT/GraphSAGE in \path{src/models/baselines.py})) and our model (\path{src/models/aco_gnn.py}) had the same training loops, evaluation metrics and loss functions. This allowed fair comparisons between models. To test for adaptability of models, dynamic data could be generated (\path{src/simulation/}). Different snapshots were generated in batches.
 \end{enumerate}
 
 \begin{table}[!htbp]
@@ -69,64 +68,64 @@ Three practical engineering principles guided our implementation:
 \section[Key Algorithms]{Key Algorithms}
 \label{sec:algorithms}
 
-Our ACO-GNN architecture relies on three primary procedures during execution: updating the stigmergic pheromone state, co-training neural weights alongside pheromones, and searching for the optimal decision cutoff on validation data. Complete formal pseudocode for each procedure is provided in Appendix~\ref{app:algorithms}.
+Within ACO-GNN, there are 3 key algorithms (Appendix~\ref{app:algorithms}).
 
-\subsection{Stigmergic Pheromone Update Cycle}
-At the end of each forward pass, our model updates structural priors through five steps (formalized in Algorithm~\ref{alg:aco_update}, Appendix~\ref{app:algorithms}) without needing backpropagation through time:
+\subsection{Trail Updates}
+Once forward propagation has been performed, the following 5 steps can be performed to update the trails (formalized in Algorithm~\ref{alg:aco_update}, Appendix~\ref{app:algorithms}):
 
 \begin{enumerate}
-    \item \textbf{Constructing the Risk Vector ($\tilde{\mathbf{p}}$):}
-    Known binary labels $y_i \in \{0, 1\}$ are used for training vertices $v_i \in \mathcal{V}_{\text{train}}$, while model fraud posteriors $p_i = \text{Softmax}(\hat{\mathbf{Z}})_{i, 1}$ are used for unobserved validation and test accounts.
+    \item \textbf{Risk Calculation ($\tilde{\mathbf{p}}$):}
+    During training, labels $y_i \in \{0, 1\}$ are given to labelled nodes $v_i \in \mathcal{V}_{\text{train}}$. During validation/testing, probabilities of fraud $p_i = \text{Softmax}(\hat{\mathbf{Z}})_{i, 1}$ are calculated for each node.
 
-    \item \textbf{Pairwise Risk Evaluation ($R_{ij}$):}
-    For every directed edge $(i, j) \in \mathcal{E}$, joint suspicion is computed using the geometric mean:
+    \item \textbf{Pairwise Risk ($R_{ij}$):}
+    For every edge $(i, j) \in \mathcal{E}$, the risk of fraud is calculated as the geometric mean of the risk of fraud for each node in the edge:
     \begin{equation}
         R_{ij} = \sqrt{\tilde{p}_i \cdot \tilde{p}_j + 10^{-8}}
     \end{equation}
-    This geometric formulation enforces co-occurrence: an edge is reinforced only when \textit{both} endpoints look suspicious. If a fraudster links to a reputable borrower ($p_j \approx 0$), the geometric product drops to zero, naturally preventing camouflage links from receiving positive reinforcement.
+    If either node in the edge has a low risk of fraud then the edge will have a low risk. If a fraudulent node is connected to a non fraudulent node, risk will be close to 0. Therefore, no pheromone will be added to camouflaged edges.
 
-    \item \textbf{Neighborhood Consensus Aggregation ($\bar{R}_i$):}
-    To prevent isolated noisy predictions from destabilizing trails, each node calculates the average risk across its incident neighborhood:
+    \item \textbf{Agreement Between Neighbouring Nodes ($\bar{R}_i$):}
+    To prevent extreme risk values from affecting trails, the average risk from direct neighbouring nodes is calculated:
     \begin{equation}
         \bar{R}_i = \frac{1}{\max(1, |\mathcal{N}(i)|)} \sum_{j \in \mathcal{N}(i)} R_{ij}
     \end{equation}
-    The target potential combines local prediction with neighborhood consensus: $T_i = \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot [0.5 \tilde{p}_i + 0.5 \bar{R}_i]$.
+    Targeted node potentials are calculated as the mean risk from the node and sum of risks from neighbouring nodes: $T_i = \tau_{\min} + (\tau_{\max} - \tau_{\min}) \cdot [0.5 \tilde{p}_i + 0.5 \bar{R}_i]$.
 
-    \item \textbf{EMA Evaporation and Reinforcement:}
-    Node potentials $\mathbf{s} \in \mathbb{R}^N$ update via momentum smoothing with deposit rate $\gamma_u$:
+    \item \textbf{Exponential Moving Average:}
+    Node potentials $\mathbf{s} \in \mathbb{R}^N$ are calculated as exponentially moving averages with $\gamma_u$:
     \begin{equation}
         s_i' = (1 - \gamma_u) \cdot s_i + \gamma_u \cdot T_i
     \end{equation}
-    Potentials are clamped within $[\tau_{\min}, \tau_{\max}]$, maintaining numerical stability and avoiding trail starvation or explosive saturation.
+    The node potentials are capped to $[\tau_{\min}, \tau_{\max}]$ to ensure they do not go to 0 or infinity.
 
-    \item \textbf{Relation-Specific Softmax Normalization ($\hat{\boldsymbol{\tau}}$):}
-    Pairwise edge trails are derived as $\tau_{ij} = \sqrt{s_i' \cdot s_j' + 10^{-8}}$ and normalized per incoming neighborhood via temperature-scaled softmax:
+    \item \textbf{Softmax Normalisation ($\hat{\boldsymbol{\tau}}$):}
+    Pairwise trails are calculated for each edge as $\tau_{ij} = \sqrt{s_i' \cdot s_j' + 10^{-8}}$. These values are normalised with a temperature scaled softmax function over incoming edges:
     \begin{equation}
         \hat{\tau}_{ij} = \frac{\exp(\tau_{ij} / T_s)}{\sum_{k \in \mathcal{N}(j)} \exp(\tau_{kj} / T_s)}
     \end{equation}
-    yielding normalized structural priors for the next convolution pass.
+    We now have a normalised edge weight. This can be passed onto the next step.
 \end{enumerate}
 
-\subsection{Dual-Loop End-to-End Training Procedure}
-The overall training process (Algorithm~\ref{alg:training_pipeline}, Appendix~\ref{app:algorithms}) pairs gradient updates on neural weights $\Theta$ with evolutionary updates on structural memory:
+\subsection{Training}
+Model weights are updated using standard back-propagation. Trail updates are iteratively performed (Algorithm~\ref{alg:training_pipeline}, Appendix~\ref{app:algorithms}):
 
 \begin{itemize}
-    \item \textbf{Forward Propagation:} At each epoch, the gating parameter $\lambda = \sigma(\psi) \in (0, 1)$ blends self-attention $\alpha_{ij}^{(r)}$ with stigmergic priors $\hat{\tau}_{ij}^{(r)}$ (Equation~\ref{eq:dual_attention_blend}), followed by layer normalization and residual skips (Equation~\ref{eq:final_layer_norm}).
-    \item \textbf{Focal Loss Optimization:} Parameters $\Theta$ are updated with Adam using class-imbalanced focal loss $\mathcal{L}_{\text{FL}}$ (Equation~\ref{eq:focal_loss}) over training nodes $\mathcal{V}_{\text{train}}$. The focusing parameter $\gamma = 2.0$ downweights easy benign examples so the model concentrates on hard, disguised fraud patterns.
-    \item \textbf{Evolutionary Stigmergic Feedback:} Immediately following backward updates, current posterior fraud probabilities are passed to the ACO engine to execute the stigmergic update cycle. Because pheromone updates run outside PyTorch's computational graph via \texttt{torch.no\_grad()}, this feedback loop requires zero extra backpropagation memory.
-    \item \textbf{Validation-Driven Early Stopping:} To avoid overfitting to majority-class shortcuts, we monitor the composite validation score $S_{\text{val}} = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$ with patience $P=15$, restoring the best checkpoint upon convergence.
+    \item \textbf{Forward Propagation:} During each epoch, gate weights $\lambda = \sigma(\psi) \in (0, 1)$ are applied to self attention and pheromone values (Equation~\ref{eq:dual_attention_blend}). They are then passed through layer normalisation and residual connections (Equation~\ref{eq:final_layer_norm}).
+    \item \textbf{Optimising Model:} Model parameters $\Theta$ are optimised using Adam to reduce the focal loss $\mathcal{L}_{\text{FL}}$ (Equation~\ref{eq:focal_loss}) in the training set $\mathcal{V}_{\text{train}}$. We chose a focusing parameter of $\gamma = 2.0$, meaning examples of benign nodes that are easy to classify will have reduced losses. This means that during optimisation, more focus is given to finding camouflaged fraudulent nodes.
+    \item \textbf{Update Stigmergy:} Immediately after back propagation, predicted fraud values are passed to the ACO system to update trails. Since this is in the \texttt{torch.no\_grad()} block, no gradient calculations are being performed meaning no overhead occurs.
+    \item \textbf{Early Stopping:} To avoid prediction being heavily biased toward the majority class, combined scores $S_{\text{val}} = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$ are calculated during validation. Early stopping is performed with patience level $P=15$, and the best model checkpoint is returned to.
 \end{itemize}
 
-\subsection{Validation-Calibrated Decision Threshold Search}
-In fraud detection with heavy class imbalance (under 15\% fraudulent accounts), a default threshold of $\theta = 0.50$ heavily biases predictions toward the benign majority. Classifiers often predict almost everything as non-fraudulent, producing high nominal accuracy but missing actual fraudsters.
+\subsection{Threshold Search}
+Since there is very little fraudulent nodes in fraud data sets ($<15\%$), often using $0.50$ as a threshold results in poor results. Most nodes may be predicted as non-fraudulent and accuracy may be high. However, very few fraudulent nodes may be identified.
 
-To fix this, our pipeline performs a threshold sweep on validation data (Algorithm~\ref{alg:threshold_calibration}, Appendix~\ref{app:algorithms}) after each validation pass:
+Thresholds were searched in the validation data (Algorithm~\ref{alg:threshold_calibration}, Appendix~\ref{app:algorithms}):
 \begin{enumerate}
-    \item Validation fraud posteriors $\mathbf{p}_{\text{val}} \in [0, 1]^{N_{\text{val}}}$ are evaluated across candidate cutoffs $\Theta_{\text{cand}} = \{0.05, 0.06, \dots, 0.95\}$.
-    \item For each candidate cutoff $\theta$, binary classifications $\hat{\mathbf{y}}_\theta = \mathbb{I}(\mathbf{p}_{\text{val}} \ge \theta)$ are compared against validation labels $\mathbf{Y}_{\text{val}}$ to track precision and recall.
-    \item The cutoff $\theta^* = \arg\max_{\theta \in \Theta_{\text{cand}}} \text{F1}_{\text{illicit}}(\theta)$ that maximizes minority fraud $F_1$ is selected and locked for test evaluation.
+    \item For each threshold between $0.05$ and $0.95$ ($\Theta_{\text{cand}} = \{0.05, 0.06, \dots, 0.95\}$), apply threshold on predicted fraud probability $\mathbf{p}_{\text{val}} \in [0, 1]^{N_{\text{val}}}$.
+    \item For each threshold $\theta$, probabilities are converted to binary predictions $\hat{\mathbf{y}}_\theta = \mathbb{I}(\mathbf{p}_{\text{val}} \ge \theta)$. Precision and Recall can be calculated using ground truth labels $\mathbf{Y}_{\text{val}}$ in the validation data.
+    \item Find threshold $\theta^* = \arg\max_{\theta \in \Theta_{\text{cand}}} \text{F1}_{\text{illicit}}(\theta)$ which maximises the F1 score for minority class labels. Apply this threshold to produce predictions in testing data.
 \end{enumerate}
-Restricting threshold selection strictly to the validation split prevents target leakage into the test partition.
+Since the threshold was optimised in the validation data, labels in testing data remain unchanged.
 
 \begin{table}[!htbp]
 \centering
@@ -168,54 +167,54 @@ Restricting threshold selection strictly to the validation split prevents target
 % ------------------------------------------------------------------------------
 % SECTION 4.3: REAL-DATASET ADAPTATIONS
 % ------------------------------------------------------------------------------
-\section[Real-Dataset Adaptations]{Real-Dataset Adaptations and Computational Optimizations}
+\section[Improvements for Real Data Sets]{Improvements for Real Data Sets}
 \label{sec:adaptations}
 \label{sec:dataset_adaptations}
 
-Deploying our ACO-GNN model on real-world benchmark graphs (YelpChi with 45,954 nodes and 3.85M edges; Amazon with 11,944 nodes and 4.40M edges) introduced concrete performance hurdles that did not appear on toy synthetic graphs. Running multi-million-edge graphs on standard CPU workstations easily causes out-of-memory errors and slow training loops. To make the pipeline practical without requiring high-end GPU servers, we developed several targeted engineering optimizations in memory management, attention computation, and data preprocessing.
+When scaling our models to large real world data sets (YelpChi (45,954 nodes, 3.85M edges) and Amazon (11,944 nodes, 4.40M edges)), some issues arose. In order to run these data sets on standard CPU hardware, memory issues and slow training times were frequent. In order to allow efficient training on standard work station hardware (without requiring GPU clusters), some improvements were made.
 
-\subsection{Node-Level Pheromone via Geometric Mean Approximation}
+\subsection{Node Based Geometric Mean Values}
 \label{subsec:node_pheromone}
 
-In the conceptual formulation of Ant Colony Optimization, every edge $(i,j)$ carries its own independent pheromone value $\tau_{ij}$. While storing 3.85 million floating-point values for YelpChi is technically possible within RAM, doing so during training caused two practical headaches:
+In standard ACO models, pheromone values are defined for edges $\tau_{ij}$. However, in this problem, having 3.85M floats in pheromone values (YelpChi) caused issues during training:
 \begin{enumerate}
-    \item \textbf{Subsampling bias:} To keep CPU memory manageable, training runs sample a maximum of 150,000 edges per relation each epoch. If pheromone updates only apply to sampled edges, unsampled edges remain stuck at default initial values, creating an artificial bias toward dense, frequently sampled neighborhoods.
-    \item \textbf{Checkpointing overhead:} During early stopping, saving and restoring full edge-pheromone arrays whenever validation metrics improve added heavy disk I/O latency to every training epoch.
+    \item \textbf{Sampling Bias:} Due to processing 150K edges per relation per epoch (to reduce memory usage on CPU hardware), edges in each relation which were not sampled will have default values. This causes bias in favour of densely sampled regions.
+    \item \textbf{High Overhead from Checkpoints:} Since large edge tensors are saved, and reloaded in early stopping (if a better validation score is found), large overhead in each epoch occurs due to the increased latency from reading from disk.
 \end{enumerate}
 
-To circumvent both problems, our \texttt{VectorizedACOEngine} maintains pheromone state at the node level instead of allocating edge arrays:
+To improve this, we changed the model to store pheromone values in node form:
 \begin{equation}
     \mathbf{s} \in \mathbb{R}^{N}, \quad s_i = \text{stigmergic risk score for node } v_i
 \end{equation}
-During message passing, the effective pheromone weight for any directed edge $(i, j)$ is computed on the fly through the geometric mean of the two endpoint potentials:
+During message passing, the pheromone values for directional edges are calculated by taking the geometric mean of the start and end node values:
 \begin{equation}
     \tau_{ij} = \sqrt{s_i \cdot s_j + 10^{-8}}
     \label{eq:node_pheromone_derivation}
 \end{equation}
 
-This design reduces memory complexity from $\mathcal{O}(|\mathcal{E}|)$ to $\mathcal{O}(N)$, shrinking YelpChi's pheromone state footprint from 3.85 million values to just 45,954 values---an $83.7\times$ memory reduction. Furthermore, because node potentials update from aggregated neighborhood predictions regardless of which individual edges were sampled in a given batch, edge weights remain consistent across training epochs without freezing unsampled connections.
+This change reduced memory requirements from $\mathcal{O}(|\mathcal{E}|)$ to $\mathcal{O}(N)$. For the YelpChi data set, this means pheromone values to be stored have gone from 3.85M values to 45,954. A $83.7\times$ improvement! Since node potential values are derived from aggregated values of surrounding nodes, regardless of which edges are sampled in a mini-batch, the edge weights between epochs will be consistent.
 
-\subsection{Memory-Efficient Attention Computation}
+\subsection{Efficiently Calculated Attention}
 \label{subsec:chunked_attention}
 
-The \texttt{PheromoneGuidedConv} layer combines learned attention with pheromone weights via a destination-grouped softmax. Materializing a dense $N \times N$ matrix for YelpChi would require gigabytes of temporary memory, instantly crashing standard Python processes. We addressed this with three implementation choices:
+Attention and pheromone values are blended (\texttt{PheromoneGuidedConv}), by grouping with respect to end node. However, if we were to create a dense tensor in this step for the YelpChi data set, gigabytes of temporary memory would be needed, and the Python program would crash. To solve this, the following improvements were made:
 
 \begin{enumerate}
-    \item \textbf{Pre-computing node projections:} We compute source and destination linear projections ($\mathbf{a}_{\text{src}}^T \mathbf{W} \mathbf{h}_i$ and $\mathbf{a}_{\text{dst}}^T \mathbf{W} \mathbf{h}_j$) once per node as $N$-dimensional vectors, and only then gather them along active edges. This avoids allocating large intermediate feature tensors across millions of edges.
-    \item \textbf{Destination-grouped scatter softmax:} Instead of running a global softmax across the entire edge index (which would incorrectly normalize attention across different destination nodes), we execute a numerically stable three-stage scatter operation:
+    \item \textbf{Pre-Calculate Start/End Node Projections:} For efficiency, start and end node projections ($\mathbf{a}_{\text{src}}^T \mathbf{W} \mathbf{h}_i$ and $\mathbf{a}_{\text{dst}}^T \mathbf{W} \mathbf{h}_j$) are pre-calculated for all nodes (size $N$). Edge index can be retrieved. Large intermediate feature tensors for millions of edges are avoided.
+    \item \textbf{Grouped Softmax:} To ensure attention values are weighted correctly, we cannot take a global softmax across all edges in this model (as this would incorrectly group attention values from different end nodes). Three steps of grouped scatter are performed:
     \begin{align}
         \text{max}_{j} &\leftarrow \texttt{scatter\_reduce}(\text{dst}, \alpha_{\text{logits}}, \text{`amax'}) \\
         \alpha_{\text{exp}} &= \exp(\alpha_{\text{logits}} - \text{max}_{j}[\text{dst}]) \\
         \alpha_{ij} &= \frac{\alpha_{\text{exp}}}{\texttt{scatter\_add}(\text{dst}, \alpha_{\text{exp}}) + 10^{-8}}
     \end{align}
-    Subtracting the destination maximum prevents exponential overflow in float32 while keeping attention weights strictly normalized within each node's local neighborhood.
-    \item \textbf{Relation-by-relation passes:} Rather than loading all 3.85 million edges at once, message passing loops through each relation type $r \in \{0, 1, 2\}$ sequentially using boolean masks, handling roughly 1.28 million edges per pass. This divides peak RAM consumption by the number of relations.
+    Subtraction of max values based on end node avoids overflows in float32 values. This ensures attention values are correctly normalised in incoming neighbourhoods of nodes.
+    \item \textbf{Iterate Through Relation Types:} Instead of loading 3.85M edges in one go, boolean masks are used in a loop to iterate through each relation type. Around 1.28M edges are processed at a time. Peak memory usage has therefore been reduced by a factor of around 3.
 \end{enumerate}
 
-\subsection{Feature Preprocessing for Heterogeneous Datasets}
+\subsection{Preprocessing Heterogeneous Data}
 \label{subsec:feature_preprocessing}
 
-During initial validation experiments, we noticed that raw feature distributions differed substantially between datasets, directly affecting gradient stability (Table~\ref{tab:feature_ablation}).
+We found that node features differ quite drastically between different data sets, and this caused issues in early epochs (Table~\ref{tab:feature_ablation}):
 
 \begin{table}[htbp]
 \centering
@@ -235,41 +234,40 @@ CARE-style row-sum normalization    & 0.8341 & 0.6815 & 0.4611 & 0.7886 \\
 \end{table}
 
 \begin{itemize}
-    \item \textbf{YelpChi:} Applying z-score normalization ($x_i \leftarrow (x_i - \mu_{\text{train}}) / \sigma_{\text{train}}$) based purely on training nodes improved validation Macro-F1 from 0.6912 to 0.7187 (+2.75 points) and Fraud-F1 by 5.01 points over raw features. Computing mean and variance strictly on the training partition prevents information leakage into validation and test sets.
-    \item \textbf{Amazon:} Reviewer feature magnitudes on Amazon vary widely across users. We found that CARE-style row normalization ($x_i \leftarrow x_i / (\sum_j x_{ij} + 0.01)$) was critical. Without it, the model struggled to train, achieving only 0.6797 Macro-F1; with row normalization, it reached 0.9041, bringing performance on par with CARE-GNN (0.9015).
+    \item \textbf{YelpChi:} Normalising node features in training data (with z-score normalisation $x_i \leftarrow (x_i - \mu_{\text{train}}) / \sigma_{\text{train}}$) improved the macro F1 score in validation data by 2.75 points (0.7187 to 0.6912). Fraud F1 score was improved by 5.01 from raw data. In order to avoid data leakage, averages and standard deviations of node features were calculated purely from training data.
+    \item \textbf{Amazon:} Features in reviews on Amazon varied greatly in magnitude. Row-wise normalisation ($x_i \leftarrow x_i / (\sum_j x_{ij} + 0.01)$ as used in CARE-GNN) was crucial in this case. If row-wise normalisation was not performed the model performed very poorly (Macro F1 = 0.6797). However, once row-wise normalisation was applied, model performance improved dramatically (Macro F1 = 0.9041). This is very similar to the performance of CARE-GNN (Macro F1 = 0.9015).
 \end{itemize}
 
-\subsection{Dual Threshold Reporting Protocol}
+\subsection{Two Thresholds}
 \label{subsec:dual_threshold}
 
-Most baseline papers report results using a default decision cutoff of $\theta = 0.5$ (equivalent to an argmax on output logits). However, because fraud detection tasks are heavily imbalanced (14.53\% positive cases on YelpChi, 9.87\% on Amazon), a fixed 0.5 threshold often misrepresents the classifier's practical utility. We therefore report all benchmark results under two complementary settings:
+Many papers in this field report model performance with a 0.5 threshold (argmax). However, in fraud detection problems the data is very imbalanced. Only 14.53\% of nodes in YelpChi and 9.87\% in Amazon are fraudulent. Therefore using a threshold of 0.5 may yield misleading results. For this reason, we report model results with 2 thresholds:
 
 \begin{enumerate}
-    \item \textbf{Default threshold ($\theta = 0.5$):} Retained to allow direct, apples-to-apples comparisons with published baseline numbers.
-    \item \textbf{Validation-tuned threshold ($\theta^*$):} We sweep the Precision-Recall curve on the validation partition to find the threshold that yields the best minority-class F1 score. We then evaluate this exact cutoff on the test set without any test-label tuning.
+    \item \textbf{Default Threshold (0.5):} Comparison with results in existing literature.
+    \item \textbf{Optimised Threshold ($\theta^*$):} A grid search was performed on precision/recall curves in validation data to find the threshold which yields the best F1 score for the minority class. This threshold was then applied to test data. Labels in test data were unknown.
 \end{enumerate}
 
-Reporting both thresholds gives a fair picture: readers can compare against published scores at $\theta = 0.5$, while also seeing how the model performs when tuned for real-world imbalanced operation.
+By using 2 thresholds in reporting model results, we can see how models perform compared to standard baselines in literature, and in imbalanced scenarios.
 
-\subsection{Multi-Seed Benchmark Runner Infrastructure}
+\subsection{Multi Seed Benchmarking}
 \label{subsec:multiseed_scripts}
 
-To avoid cherry-picked results, all reported evaluations are averaged over five fixed random seeds ($42, 123, 456, 789, 1024$). We wrote two standalone automation scripts:
-
-\begin{itemize}
-    \item \texttt{run\_multiseed\_aco.py}: Automates training, validation checkpointing, and testing across all five seeds on YelpChi and Amazon. The script saves metrics to JSON after each seed so that long runs can be resumed cleanly if interrupted.
-    \item \texttt{run\_tune\_and\_compare.py}: Runs a two-stage evaluation: first tuning $\lambda$ and $\rho$ on validation data using a compact grid, and then running five-seed comparisons between ACO-GNN and CARE-GNN on identical train/validation/test masks.
-\end{itemize}
-
-Across all seeds, we report sample mean and sample standard deviation ($\text{ddof} = 1$):
+To ensure that results were not coincidental, benchmarks were run with 5 fixed random seeds ($42, 123, 456, 789$ and $1024$). An average and standard deviation could be calculated ($\text{ddof} = 1$):
 \begin{equation}
     \bar{m} = \frac{1}{5}\sum_{s=1}^{5} m_s, \quad \hat{\sigma} = \sqrt{\frac{1}{4}\sum_{s=1}^{5}(m_s - \bar{m})^2}
 \end{equation}
+Two scripts were written for benchmarking:
 
-\subsection{Hyperparameter Tuning Process}
+\begin{itemize}
+    \item \texttt{run\_multiseed\_aco.py}: Models are trained. If better validation scores are found, models are saved. Models are evaluated with 5 seeds on the YelpChi and Amazon data sets. Results are saved in JSON format for each seed. Training can be paused and continued if experiments are interrupted.
+    \item \texttt{run\_tune\_and\_compare.py}: A 2-step process is performed. In the first step, a small grid search is performed on validation data to find optimal values for $\lambda$ and $\rho$. In the second step, ACO-GNN and CARE-GNN models are compared with 5 seeds. The same data masks are used.
+\end{itemize}
+
+\subsection{Hyperparameter Optimisation}
 \label{subsec:hyperparameter_tuning}
 
-The primary hyperparameters specific to the ACO mechanism are the initial blending weight $\lambda_{\text{init}}$ and the evaporation rate $\rho$. We evaluated these on YelpChi validation data using a compact grid search:
+We introduced 2 new hyperparameters (Blend Ratio (Initial) $\lambda_{\text{init}}$ and Evaporation Rate $\rho$). These hyperparameters were optimised for the validation set of YelpChi, using a small grid search:
 
 \begin{table}[htbp]
 \centering
@@ -291,7 +289,7 @@ $\lambda_{\text{init}}$ & $\rho$ & \textbf{Val Acc.} & \textbf{Macro-F1} & \text
 \end{tabular*}
 \end{table}
 
-We selected configurations using the combined validation score $S = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$. Setting $\lambda_{\text{init}} = 0.25$ and $\rho = 0.01$ produced the strongest validation response on YelpChi. A lower $\lambda_{\text{init}}$ allows pheromone trails to play a stronger role early in training before learned attention takes over, while a gentle evaporation rate of $\rho = 0.01$ prevents valid trail memory from decaying too quickly across epochs. All parameter choices were finalized strictly on validation splits without touching test data.
+The best combination of hyperparameters was found by summing the validation scores $S = \text{Macro-F1}_{\text{val}} + \text{AUC-ROC}_{\text{val}}$. The best values found were a blend ratio (initial) of 0.25 and evaporation rate of 0.01. A low initial blend ratio means that in early epochs, pheromone trails have more influence in the model. However, attention weights will be stable. A low evaporation rate means that useful structural patterns are not rapidly lost. All hyperparameters were purely optimised based on validation data.
 
 
 % ------------------------------------------------------------------------------
@@ -301,13 +299,13 @@ We selected configurations using the combined validation score $S = \text{Macro-
 \label{sec:reproduction_results}
 \label{sec:care_gnn_reproduction}
 
-Before benchmarking our proposed model, we reproduced our primary baseline: \textbf{CARE-GNN} (Dou et al., KDD 2020 \cite{dou2020enhancing}), as covered in the survey by Cheng et al. (2025) \cite{cheng2025financial}. Reproducing this baseline served two purposes: it gave us an objective performance target on identical data splits, and it verified that our feature extraction and evaluation metrics matched published standards.
+Before running our model, we reproduced the main baseline model (\textbf{CARE-GNN}, Dou et al., KDD 2020 \cite{dou2020enhancing}) as detailed in recent literature \cite{cheng2025financial}. This was done locally, to reliably benchmark our model with specific data splits. Preprocessing and evaluation metrics were matched to existing results.
 
 \subsection{Reproduction Protocol}
-We integrated the official CARE-GNN repository (\path{baselines/CARE-GNN}) into our benchmark framework, running tests on YelpChi (45,954 nodes, 3.85M edges) and Amazon (11,944 nodes, 4.40M edges). We strictly adhered to the standardized inductive split (60\% train, 20\% validation, 20\% test) and identical preprocessing pipelines.
+The official code for the CARE-GNN model (\path{baselines/CARE-GNN}) was modified to match our project. The model was benchmarked on YelpChi (45,954 nodes, 3.85M edges) and Amazon (11,944 nodes, 4.40M edges). Standard inductive data splits were used (60/20/20), and preprocessing matched.
 
 \subsection{Reproduction Findings and Metric Alignment}
-Table \ref{tab:care_reproduction} compares the published metrics with our local empirical runs.
+Table \ref{tab:care_reproduction} lists the published numbers alongside the results from our local runs.
 
 \begin{table}[htbp]
 \centering
@@ -323,9 +321,9 @@ Table \ref{tab:care_reproduction} compares the published metrics with our local 
 \end{tabularx}
 \end{table}
 
-Our empirical results match published benchmarks closely (deviations under 0.005 in both Macro-F1 and AUC-ROC). This confirmed that:
+Good agreement was found between results in local and existing literature. Differences in Macro F1 scores and AUC ROC scores were $<0.005$. This implies:
 \begin{enumerate}
-    \item Feature extraction and relation meta-paths were loaded accurately without data leakage across splits.
-    \item Our evaluation pipeline computes Macro-F1 and AUC-ROC consistently with standard academic practice.
-    \item We established a verified benchmark against which all performance gains of ACO-GNN are objectively measured.
+    \item Data was correctly loaded and metapath graphs were correctly generated. No leakage between data splits occurred.
+    \item Macro F1 and AUC ROC scores were correctly calculated.
+    \item A reliable baseline exists to compare our ACO-GNN results to.
 \end{enumerate}

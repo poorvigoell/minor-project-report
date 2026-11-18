@@ -1,17 +1,17 @@
 \chapter{Results and Discussion}
 \label{ch:result}
 
-In this chapter, we evaluate ACO-GNN across three different testing grounds: real-world fraud benchmarks (YelpChi and Amazon), an incremental dynamic lending simulation, and a controlled camouflage noise testbed. We describe our hardware and software configuration, confirm our baseline CARE-GNN reproduction, and analyze our main five-seed benchmark findings. We then evaluate dynamic stream adaptation, test camouflage resilience under noise, examine component contributions through ablations, and explore why relational homophily plays a critical role in fraud detection.
+This section demonstrates the performance of ACO-GNN on three test sets: YelpChi and Amazon benchmarks, incrementally growing lending data, and a synthetic graph with artificial camouflage noise. First we describe the experimental setup. Then, we present the performance of the model on five seeds and discuss adaptation to streaming data, resilience to camouflage attacks, ablation studies highlighting contributions from different components, and effects of relational homophily on performance.
 
 % ==============================================================================
 % SECTION 5.1: EXPERIMENTAL SETUP
 % ==============================================================================
-\section[Experimental Configuration]{Experimental Configuration}
+\section[Experimental Setup]{Experimental Setup}
 \label{sec:exp_setup}
 
 \subsection{Hardware and Software Environment}
 
-To ensure complete experimental reproducibility and eliminate nondeterministic floating-point variations across different GPU backends, all experiments were carried out on a standardized commodity CPU workstation. Table~\ref{tab:hardware_software} summarizes the software packages and platform specifications.
+All experiments were performed on a standard CPU system. This guarantees a fully deterministic experiment, and avoids small discrepancies between results due to different versions of CUDA. The experiments were run on an x86\_64 CPU with 16GB of DDR4 RAM. Python version 3.12 was used alongside PyTorch v2.2 (custom vectorised sparse CSR operators). Additional packages were NumPy (v1.26), SciPy (v1.12), scikit-learn (v1.4), XGBoost (v2.0) and LightGBM (v4.1). Table~\ref{tab:hardware_software} summarizes the software packages and platform specifications.
 
 \begin{table}[htbp]
 \centering
@@ -36,9 +36,9 @@ LightGBM        & 4.1 \\
 \end{tabular*}
 \end{table}
 
-\subsection{Model Hyperparameters}
+\subsection{Hyperparameter Details}
 
-Table~\ref{tab:hyperparams} lists the hyperparameter configuration used across the benchmark experiments. To maintain consistency, base architectural dimensions and optimization settings were kept constant across datasets, with variations limited to initial blend weighting ($\lambda_{\text{init}}$) and dataset-specific feature preprocessing.
+Across the datasets, common hyperparameters were chosen. Only initial mixing parameter and feature normalisation changed between datasets. The models had 64 hidden dimensions, 2 GNN layers, and an MLP classifier (64 $\to$ 32 $\to$ 2). A dropout rate of 0.3 was used, and 3 relations. An Adam optimiser with learning rate 0.005, weight decay $10^{-4}$, early stopping patience of 15 epochs and gradient clipping of 2.0 were used. On YelpChi raw features were applied with initial mixing parameter 0.75, while Amazon had row sum normalisation applied with initial mixing parameter 0.25. Evaporation was applied with rate 0.05, and balanced cross entropy loss. Table~\ref{tab:hyperparams} lists the full hyperparameter configuration.
 
 \begin{table}[htbp]
 \centering
@@ -81,19 +81,20 @@ Table~\ref{tab:hyperparams} lists the hyperparameter configuration used across t
 \end{tabular}
 \end{table}
 
-\subsection{Evaluation Protocol}
+\subsection{Evaluation Details}
 
-To prevent misleading results and evaluate practical utility under heavy class imbalance, we implemented the following evaluation protocol:
+In order to fairly evaluate performance in highly imbalanced classification problems, the following steps were taken:
+
 \begin{enumerate}
-    \item \textbf{Five-seed testing:} All static benchmark figures represent the mean $\pm$ sample standard deviation across five fixed random seeds ($s \in \{42, 123, 456, 789, 1024\}$).
-    \item \textbf{Standardized data splits:} We follow the established split protocol from Dou et al. (KDD 2020): 40\% training (with 20\% reserved for validation) and 60\% for test evaluation. On Amazon, evaluation is restricted to labeled nodes (indices 3,305 onward).
-    \item \textbf{Dual decision thresholds:} We report metrics at both the default cutoff ($\theta = 0.5$) for direct literature comparison and a validation-tuned cutoff ($\theta^*$) chosen to maximize validation Illicit-F1.
-    \item \textbf{Imbalance-aware metrics:} In addition to Macro-F1 and AUC-ROC, we report minority-class Illicit-F1 and PR-AUC, which are far more informative when fraud cases account for only a small percentage of total nodes.
+    \item \textbf{5 Seed Evaluation:} Values are presented as mean and sample standard deviation across 5 random seeds ($s \in \{42, 123, 456, 789, 1024\}$).
+    \item \textbf{Standard Data Splits:} Data splits were selected identical to Dou et al. (KDD 2020 \cite{dou2020enhancing}). 40\% of data was used for training (with 20\% held out for validation), and 60\% for testing. Only labelled nodes (from index 3305 onwards) were evaluated in Amazon.
+    \item \textbf{Two Decision Thresholds:} Metrics are reported for both default threshold ($0.5$), to allow comparison with previous work, and a threshold tuned on validation data to maximise validation Illicit-F1.
+    \item \textbf{Imbalanced Metric Consideration:} In addition to Macro-F1 and AUC-ROC, minority class scores (Illicit-F1 and PR-AUC) were considered in order to get a clear view of performance in rare positive classification.
 \end{enumerate}
 
 \subsection{Dataset Summary}
 
-Table~\ref{tab:dataset_summary} summarizes the structural parameters, edge counts, and imbalance ratios of the three evaluated graph environments.
+Three different graph datasets were used. YelpChi had 45,954 nodes, 3,846,979 edges (over 3 relations), 32 features and 14.53\% fraud. Amazon had 11,944 nodes, 4,398,392 edges (over 3 relations), 25 features and 9.87\% fraud in labelled accounts. The synthetic lending graph had 1,000 nodes, approximately 5,200 edges, multi hop loan rings. It had 10 features, and 5.0\% fraud. Table~\ref{tab:dataset_summary} summarizes the structural parameters.
 
 \begin{table}[htbp]
 \centering
@@ -116,12 +117,12 @@ Synthetic Lending & 1,000   & $\sim$5,200 & 3 (multi-hop loan rings) & 10  & 5.0
 % ==============================================================================
 % SECTION 5.2: BASE PAPER REPRODUCTION
 % ==============================================================================
-\section[Base Paper Reproduction Validation]{Base Paper Reproduction Validation}
+\section[Validation of Base Paper Reproduction]{Validation of Base Paper Reproduction}
 \label{sec:reproduction_validation}
 
-To ensure that our comparative evaluation rested on a verified foundation, we first reproduced the baseline \textbf{CARE-GNN} (Dou et al., KDD 2020 \cite{dou2020enhancing}) under the benchmark conditions surveyed by Cheng et al. (2025) \cite{cheng2025graph}. We set up the official CARE-GNN codebase inside \texttt{baselines/CARE-GNN} and executed runs on YelpChi and Amazon using the original preprocessing steps and hyperparameter choices.
+We validated the reproducibility of the CARE-GNN baseline as described in recent surveys \cite{cheng2025graph}. The official CARE-GNN code was placed in the baseline folder (\texttt{baselines/CARE-GNN}), and experiments run on YelpChi and Amazon with original hyperparameters and preprocessing.
 
-Table~\ref{tab:reproduction_results} compares our reproduced results with published survey values.
+Metrics across both datasets were closely matched (Table~\ref{tab:reproduction_results}). On YelpChi, the Macro-F1 and AUC-ROC scores of 0.6347 and 0.7734 respectively compared with ranges of 0.6280--0.6433 for Macro-F1, and 0.7619--0.7750 for AUC-ROC in the literature. Similarly, on Amazon, scores of 0.8946 and 0.9442 for Macro-F1 and AUC-ROC respectively compared with ranges of 0.8890--0.9000 for Macro-F1, and 0.9410--0.9491 for AUC-ROC. We can therefore be confident that our data loading, multi relational masking, and evaluation functions have been implemented correctly. This means that we can be confident in having a reliable baseline for testing ACO-GNN.
 
 \begin{table}[htbp]
 \centering
@@ -141,19 +142,17 @@ Amazon  & AUC-ROC  & 0.9410 -- 0.9491 & \textbf{0.9442} & $+0.34\%$ \\
 \end{tabular*}
 \end{table}
 
-Our local reproduction metrics fell within $\pm 1.1\%$ of published intervals across both benchmarks. This confirmed that our data pipelines, multi-relational masks, and loss calculations were operating as expected, establishing an uncorrupted baseline for evaluating ACO-GNN.
-
 % ==============================================================================
 % SECTION 5.3: MAIN COMPARISON — ACO-GNN VS BASELINES
 % ==============================================================================
-\section[Main Benchmark Comparison]{Main Benchmark Comparison: ACO-GNN vs.\ Baselines}
+\section[Main Results -- Comparison to Baselines]{Main Results: Comparison to Baselines}
 \label{sec:main_comparison}
 
-This section reviews the core five-seed benchmark comparison between ACO-GNN and CARE-GNN on YelpChi and Amazon, followed by an evaluation against standard GNNs and tree models on the synthetic lending network.
+The five seed comparison between ACO-GNN and CARE-GNN is shown for YelpChi and Amazon, and the performance of ACO-GNN on the synthetic lending graph compared to standard GNNs and tree based methods is also given below.
 
-\subsection{YelpChi Results (5-Seed)}
+\subsection{YelpChi Results (5 Seeds)}
 
-Table~\ref{tab:yelpchi_main} summarizes five-seed test performance on YelpChi using validation-tuned decision thresholds.
+ACO-GNN improves on CARE-GNN on all 5 seeds for both metrics with tuned thresholds (Table~\ref{tab:yelpchi_main}). Macro-F1 improves from 0.6416 to 0.7014 ($\sim+9.3\%$). Minority class Illicit-F1 improves from 0.4119 to 0.5028 (+22.1\%). AUC-ROC improves from 0.7625 to 0.8357 (+9.6\%). Accuracy improves from 0.7889 to 0.8334. Standard deviations are very low---Macro F1 and Illicit F1 have small standard deviations of $\pm 0.0071$ and $\pm 0.0095$. This implies that improvements made by ACO-GNN are stable and not dependent on random seed.
 
 \begin{table}[htbp]
 \centering
@@ -174,9 +173,7 @@ CARE-GNN       & $0.6416 \pm 0.0038$ & $0.4119 \pm 0.0102$ & $0.7625 \pm 0.0088$
 \end{tabular*}
 \end{table}
 
-On YelpChi, ACO-GNN achieved a steady improvement over CARE-GNN across all runs. Average Macro-F1 increased from 0.6416 to 0.7014 (a $+9.3\%$ relative increase), and minority-class Illicit-F1 reached 0.5028 compared to 0.4119 for CARE-GNN ($+22.1\%$ relative increase). Standard deviations remained low ($\pm 0.0071$ for Macro-F1 and $\pm 0.0095$ for Illicit-F1), showing that these gains are reproducible and independent of seed variation.
-
-Table~\ref{tab:yelpchi_fixed_threshold} reports corresponding metrics at the uncalibrated $\theta = 0.5$ threshold.
+Using the non adjusted 0.5 threshold, CARE-GNN performs very inconsistently with large variance (Macro-F1: $0.4985 \pm 0.2022$, Table~\ref{tab:yelpchi_fixed_threshold}). Predicted logits appear to hover near 0.5 depending on initialisation. However, ACO-GNN performs very consistently (Macro-F1: $0.6808 \pm 0.0328$). This indicates predicted probabilities are well separated.
 
 \begin{table}[htbp]
 \centering
@@ -194,11 +191,9 @@ CARE-GNN       & $0.4985 \pm 0.2022$ & $0.3683 \pm 0.0640$ & $0.7625 \pm 0.0088$
 \end{tabular*}
 \end{table}
 
-At $\theta = 0.5$, CARE-GNN showed substantial variance across seeds ($0.4985 \pm 0.2022$ Macro-F1). This instability indicates that its output logits tend to drift around the fixed 0.5 cutoff. In contrast, ACO-GNN maintained a much tighter standard deviation ($0.6808 \pm 0.0328$), indicating more reliable output probability calibration.
+\subsection{Amazon Results (5 Seeds)}
 
-\subsection{Amazon Results (5-Seed)}
-
-Table~\ref{tab:amazon_main} reports five-seed performance on Amazon with row-normalized feature vectors.
+After applying row normalisation, ACO-GNN performs equally well as CARE-GNN (Macro-F1 0.9041 vs 0.9015, Illicit-F1: 0.8253 vs 0.8203, AUC-ROC: 0.9388 vs 0.9284, Table~\ref{tab:amazon_main}). Due to very low homophily in this dataset (as low as $\sim$5\% on some meta-paths), noise is introduced to the pheromones in the model. However, the model still performs reliably in comparison to the baseline.
 
 \begin{table}[htbp]
 \centering
@@ -218,13 +213,11 @@ $\Delta$ (ACO -- CARE) & $+0.0026$ & $+0.0050$ & $+0.0104$ & --- & $+0.0005$ \\
 \end{tabular*}
 \end{table}
 
-With row normalization active, ACO-GNN reached statistical parity with CARE-GNN on Amazon ($0.9041$ vs.\ $0.9015$ Macro-F1). As discussed in Section~\ref{sec:homophily}, Amazon graphs exhibit very low relational homophily (as low as 5\% on certain meta-paths), which injects noise into pheromone accumulation. Nevertheless, the framework remained stable without falling below the baseline.
+Without row normalisation, ACO-GNN only achieves 0.6797 Macro-F1. However, after applying row sum normalisation, this issue was completely removed. This implies that the issue was due to very different scales between user features, and not the ant colony process itself.
 
-\textbf{Role of feature normalization:} Without row normalization, ACO-GNN achieved only $0.6797 \pm 0.0082$ Macro-F1 on Amazon. Normalizing row sums closed this gap completely, demonstrating that user-level feature scaling disparities, rather than the pheromone update formulation itself, were responsible for the initial gap.
+\subsection{Synthetic Lending Graph Results}
 
-\subsection{Synthetic Lending Network Results}
-
-Table~\ref{tab:synthetic_main} shows performance on the synthetic lending graph with 15\% injected camouflage noise across different model paradigms.
+Within the synthetic lending graph with 15\% camouflage noise (Table~\ref{tab:synthetic_main}), tabular models perform very poorly (MLP: 0.3043, XGBoost: 0.4286). Standard GNNs perform better, with GCN achieving 0.4667, GAT 0.3125 and GraphSAGE 0.45. On YelpChi, CARE-GNN achieved a Macro-F1 of 0.6347. ACO-GNN significantly outperforms this base model, achieving a Macro-F1 of 0.9412, AUC-ROC of 0.9925 and PR-AUC of 0.9179. ACO-GNN easily outperforms vanilla GAT. The tabular models perform poorly as they make no use of graph knowledge. The GAT model is confused by the camouflage edges. However, by using pheromones, ACO-GNN is able to retain knowledge of the true loan rings, even in the presence of noise.
 
 \begin{table}[htbp]
 \centering
@@ -251,17 +244,15 @@ Fraud GNN & CARE-GNN (reproduced) & 0.6347$^{\dagger}$ & 0.7734$^{\dagger}$ & 0.
 \end{tabular}
 \end{table}
 
-On this benchmark, ACO-GNN scored \textbf{0.9412 Macro-F1}, substantially outperforming standard GAT (0.3125). Tabular classifiers struggle because they cannot inspect relational structure, while standard attention layers get confused by deceptive links. Stigmergic memory enables ACO-GNN to keep track of persistent multi-hop fraud patterns even under noisy connectivity.
-
 % ==============================================================================
 % SECTION 5.4: DYNAMIC LENDING NETWORK SIMULATION
 % ==============================================================================
-\section[Dynamic Lending Network Adaptation]{Dynamic Lending Network Adaptation\\[2pt]and Streaming Trajectory}
+\section[Dynamic Lending Adaptation]{Dynamic Lending Adaptation}
 \label{sec:dynamic_lending_results}
 
-Most conventional fraud models assume that graphs remain static throughout training and inference. In actual credit scoring and digital lending applications, however, borrower accounts, co-signer links, and financial transactions arrive in continuous streaming batches ($k \in \{1, 2, 3, 4, 5\}$). Whenever new borrower clusters appear, static models either degrade in performance or require retraining from scratch, which quickly becomes computationally prohibitive.
+Fraud detection models generally assume that graphs remain static. However in real world lending situations, new borrowers, guarantors, and transactions arrive in batches in a stream. If new borrowers are added to the graph, models designed for static graphs either have reduced accuracy, or must be re-trained completely. This is impractical in real time applications.
 
-The stigmergic pheromone engine overcomes this limitation by retaining persistent trail intensities ($\tau_{ij}^{(r)}$) that carry forward structural history between streaming batches without requiring parameter re-initialization.
+However, the ant colony model is capable of retaining structure information in pheromones, meaning that no full re-training is required in order to adapt to new data.
 
 \begin{figure}[htbp]
 \centering
@@ -270,20 +261,17 @@ The stigmergic pheromone engine overcomes this limitation by retaining persisten
 \label{fig:dynamic_lending_showcase}
 \end{figure}
 
-The empirical evaluation of dynamic streaming (Figure~\ref{fig:dynamic_lending_showcase}) highlights three major observations:
+Observations from Dynamic Test (Figure~\ref{fig:dynamic_lending_showcase}):
 
 \begin{enumerate}
-    \item \textbf{Significant Accuracy Gain ($+22.84\%$ over Static Baseline):}
-    Static CARE-GNN reached an accuracy of only $75.93\%$ because it cannot adapt its edge weights dynamically as new borrower nodes enter the graph. Dynamic ACO-GNN rapidly adapted across streaming batches, reaching \textbf{98.77\% accuracy} ($+22.84\%$ absolute improvement).
+    \item \textbf{Improved Accuracy ($\uparrow 22.84\%$):} The static CARE-GNN model only achieved 75.93\% accuracy as it was unable to update edge weights in response to new borrowers. However, the dynamic ACO-GNN model smoothly adapted to new data, achieving an accuracy of \textbf{98.77\%} (+22.84\%).
     
-    \item \textbf{High Discrimination Precision ($\text{AUC-ROC} \rightarrow 0.999$):}
-    Across incoming batches, AUC-ROC reached $0.9984 \pm 0.0016$, while PR-AUC stabilized at $0.9464 \pm 0.0536$. The dual-attention mechanism ($\omega_{ij}^{(r)} = \lambda\alpha_{ij}^{(r)} + (1-\lambda)\hat{\tau}_{ij}^{(r)}$) reliably separated coordinated fraud rings from honest loan applicants.
+    \item \textbf{Clear Separation ($\text{AUC-ROC} \sim 0.999$):} High AUC-ROC scores of $0.9984 \pm 0.0016$ were achieved across 5 batches. PR-AUC remained high ($\sim 0.9464 \pm 0.0536$). The combination of attention and pheromone weighting ($\omega_{ij}^{(r)} = \lambda\alpha_{ij}^{(r)} + (1-\lambda)\hat{\tau}_{ij}^{(r)}$) meant fraudulent rings were well identified, whilst legitimate borrowers were left untouched.
     
-    \item \textbf{Natural Filtering via Evaporation:}
-    As illustrated in Figure~\ref{fig:dynamic_lending_showcase}(c), edges linking collusive fraud nodes received consistent joint risk deposits, lifting mean trail strength from $\tau = 1.0$ up to $\tau = 2.45$. In contrast, camouflage links linking fraudsters to benign applicants received minimal joint risk updates and decayed down to $\tau_{\min} = 0.10$.
+    \item \textbf{Noise Reduction through Evaporation:} Edges connecting fraudulent accounts in collusion had consistent risk scores applied, increasing the mean pheromone value of these edges from 1.0 to 2.45. However, edges representing fake camouflage between fraudulent accounts and legitimate borrowers had very low joint risk scores, causing the pheromone values to reduce to 0.10.
 \end{enumerate}
 
-Table~\ref{tab:dynamic_performance} summarizes performance metrics observed across streaming batches on the dynamic lending environment.
+Therefore, ACO-GNN achieved high performance in the dynamic setting, with an accuracy of 98.77\%, Macro-F1 78.85\%, AUC-ROC 99.84\%, and PR-AUC 94.64\% over 5 batches (Table~\ref{tab:dynamic_performance}).
 
 \begin{table}[htbp]
 \centering
@@ -306,10 +294,10 @@ Static ACO-GNN     & No  & $98.47 \pm 0.27$ & $76.53 \pm 3.92$ & $99.90 \pm 0.10
 % ==============================================================================
 % SECTION 5.5: CAMOUFLAGE STRESS TEST
 % ==============================================================================
-\section[Adversarial Camouflage Stress Testing]{Adversarial Camouflage Stress Testing}
+\section[Robustness to Adversarial Camouflage]{Robustness to Adversarial Camouflage}
 \label{sec:stress_testing}
 
-To evaluate how well the models withstand deliberate evasion tactics, we injected synthetic camouflage noise ranging from 0\% to 50\%. In this experiment, fraudulent nodes established synthetic edges with randomly selected benign accounts, mimicking fraudsters who interact with reputable entities to mask illicit ties.
+We further tested the robustness of our model to evasion strategies, by increasing the percentage of synthetic camouflage edges, from 0\% to 50\%. Edges were created between fraudulent nodes and random benign nodes, to simulate fraudulent users attempting to connect to regular users to mask fraudulent rings.
 
 \begin{figure}[htbp]
 \centering
@@ -340,25 +328,29 @@ Table~\ref{tab:camouflage_detail} breaks down the exact Macro-F1 scores at each 
 \end{tabular*}
 \end{table}
 
-These tests highlight three clear patterns:
+Observations:
+
 \begin{enumerate}
-    \item \textbf{Rapid degradation in standard GAT:} Beyond 20\% camouflage noise, GAT's attention mechanism begins confusing fake links with real fraud patterns. Its Macro-F1 dropped from 0.6415 at zero noise to 0.1304 at 50\% noise (an 80\% drop). Because GAT relies entirely on node feature similarities in each forward pass, deceptive edges directly corrupt hidden representations across layers.
-    \item \textbf{Consistent resilience in ACO-GNN:} ACO-GNN held its Macro-F1 above 0.76 even at 50\% noise, dropping by only 0.0885 points from baseline. Trail evaporation ($\tau \leftarrow (1-\rho)\tau$) acts as an automatic filter: edges connecting fraud nodes to benign nodes receive low joint risk updates ($\sqrt{s_i \cdot s_j} \approx 0$), causing their trails to decay steadily over training epochs.
-    \item \textbf{Wider advantage under heavy noise:} The performance gap between ACO-GNN and GAT widened from $+0.2104$ at 0\% noise to $+0.6330$ at 50\% noise. This demonstrates that the stigmergic mechanism becomes most valuable precisely when camouflage is most aggressive.
+    \item \textbf{Significantly Reduced Performance in GAT:} Once greater than 20\% camouflage noise was introduced, GAT's attention mechanism was confused by the deceptive edges. The Macro-F1 of GAT dropped significantly, from 0.6415 to 0.1304 (-80\%) as GAT only considers immediate node feature relationships. Therefore, misleading edges quickly distort node embeddings during message passing.
+    
+    \item \textbf{Improved Robustness in ACO-GNN:} Even with 50\% noise, ACO-GNN maintains a high Macro-F1 value. It only decreased by 0.0885 from the clean data value (Clean: 0.8519, 10\% noise: 0.8412, 20\% noise: 0.8519, 30\% noise: 0.8267, 40\% noise: 0.7893, 50\% noise: 0.7634). The evaporation process in the model acts as a natural cleaning mechanism. Edges between fraudulent and benign accounts received low joint risk scores, meaning as training progresses, the pheromone values on these edges reduced.
+    
+    \item \textbf{Greater Relative Improvements in ACO-GNN:} As camouflage increased, ACO-GNN outperformed vanilla GAT more significantly. At 50\% camouflage, the difference was +0.6330, compared to +0.2104 with 0\% noise. This suggests that the memory gained from the ant colony mechanism is very valuable in situations where fraudulent users are trying very hard to appear normal.
 \end{enumerate}
 
 % ==============================================================================
 % SECTION 5.6: ABLATION STUDY
 % ==============================================================================
-\section[Ablation Study]{Component Ablation Analysis}
+\section[Ablation Study]{Ablation Study}
 \label{sec:ablation}
 
-To measure what each part of the architecture contributes, we evaluated four model variants on the synthetic graph with 20\% camouflage noise:
+We conducted ablation studies to determine the effect of different components in our model. Four configurations were tested on a synthetic graph with 20\% camouflage noise:
+
 \begin{enumerate}
-    \item \textbf{Vanilla GAT:} Standard attention with no pheromones ($\lambda = 1.0$).
-    \item \textbf{Pure ACO:} Message passing guided only by pheromones without learned attention ($\lambda = 0.0$).
-    \item \textbf{No-Evaporation ACO-GNN:} Dual attention with pheromones, but with trail decay disabled ($\rho = 0$).
-    \item \textbf{Full ACO-GNN:} The complete framework with learnable $\lambda$ and exponential evaporation ($\rho = 0.05$).
+    \item \textbf{Vanilla GAT:} Self attention only, no pheromone mechanism in place (mixing parameter $\lambda = 1.0$). Achieved a Macro-F1 score of 0.4444, AUC-ROC of 0.7812, and PR-AUC of 0.4356.
+    \item \textbf{Pure ACO:} Graph aggregation only using pheromone values, no learned attention (mixing parameter $\lambda = 0.0$). Achieved a Macro-F1 score of 0.8148, AUC-ROC of 0.9826, and PR-AUC of 0.8972.
+    \item \textbf{ACO-GNN without Evaporation:} Dual attention with pheromone mechanism but without evaporation ($\rho = 0$). Achieved a Macro-F1 score of 0.8679, AUC-ROC of 0.9891, and PR-AUC of 0.9047.
+    \item \textbf{Full ACO-GNN:} Full ACO-GNN model with learnable mixing parameter, and exponential evaporation ($\rho = 0.05$). Achieved a Macro-F1 score of 0.8519, AUC-ROC of 0.9925, and PR-AUC of 0.9179.
 \end{enumerate}
 
 \begin{table}[htbp]
@@ -386,27 +378,32 @@ No-Evap. ($\rho = 0$)         & 0.8679 & 0.9891 & 0.9047 & No cleanup $\Rightarr
 \label{fig:ablation_study}
 \end{figure}
 
-The ablation results lead to three main conclusions:
+Insights:
+
 \begin{enumerate}
-    \item \textbf{Pheromones drive robustness under camouflage:} Removing pheromone guidance (Vanilla GAT) drops Macro-F1 from 0.8519 to 0.4444. This confirms that the stigmergic memory mechanism, rather than feature self-attention, preserves performance on noisy graphs.
-    \item \textbf{Evaporation sharpens probability ranking:} Disabling evaporation ($\rho = 0$) yielded a slightly higher raw Macro-F1 (0.8679), but lowered PR-AUC from 0.9179 to 0.9047. Without decay, pheromone accumulation saturates across all active edges, making it harder for the model to rank suspicious nodes accurately.
-    \item \textbf{Dual attention provides the best ranking balance:} The full model achieved the highest AUC-ROC (0.9925) and PR-AUC (0.9179). Learned attention handles attribute-level feature patterns, while pheromone memory tracks multi-epoch structural signals, providing complementary information.
+    \item \textbf{Pheromone Contribution to Robustness to Camouflage:} Without pheromones in the model (Vanilla GAT), performance was severely reduced. The Macro-F1 dropped from 0.8519 to 0.4444. This means that it is the ant memory, and not node feature attention, that allows the model to be robust to deceptive edges.
+    
+    \item \textbf{Evaporation Prevents Over-saturation:} While turning evaporation off resulted in a slightly increased Macro-F1 (0.8679), the quality of rankings were worse. PR-AUC dropped to 0.9047, compared to 0.9179 with evaporation. Without evaporation, pheromones will accumulate on every active edge, making it difficult to clearly rank suspicious accounts.
+    
+    \item \textbf{Dual Attention Provides Optimal Balance:} The full model achieved the highest AUC-ROC (0.9925) and PR-AUC (0.9179). Having both feature attention and pheromone memory allows two complimentary signals to be picked up, as attribute patterns are captured by feature attention, and structural persistence is captured over epochs with pheromone memory.
 \end{enumerate}
 
 % ==============================================================================
 % SECTION 5.7: HOMOPHILY ANALYSIS
 % ==============================================================================
-\section[Homophily Analysis and Discussion]{Homophily Diagnostics and Cross-Dataset Performance Analysis}
+\section[Homophily Analysis \& Comparison across Datasets]{Homophily Analysis \& Comparison across Datasets}
 \label{sec:homophily}
 
-The contrast between our strong gains on YelpChi (+9.3\% Macro-F1) and parity on Amazon (+0.26\% Macro-F1) prompted us to inspect underlying graph structure. We found that \textbf{relational homophily}---the fraction of edges connecting nodes of the same label---explains much of this difference.
+As the model improved significantly on the YelpChi dataset (+9.3\% Macro-F1), but matched CARE-GNN on Amazon (+0.26\% Macro-F1), we investigated the graph structure. We found the amount of relational homophily in the graph is a key factor behind this difference.
 
-\subsection{Homophily Measurements}
+\subsection{Homophily in Graphs}
 
 Table~\ref{tab:homophily_ratios} reports the empirical homophily ratio $h_r$ for each relation $r$:
 \begin{equation}
     h_r = \frac{|\{(i,j) \in \mathcal{E}_r : y_i = y_j\}|}{|\mathcal{E}_r|}
 \end{equation}
+
+YelpChi has high relational homophily, with shared user connections being 91\% homophilic, shared product connections 78\% homophilic, and shared star ratings 65\% homophilic. However, Amazon has very little relational homophily. Co-purchase connections had 17\% homophily, co-starred connections had 5\% homophily, and co-votes had 15\% homophily.
 
 \begin{table}[htbp]
 \centering
@@ -428,13 +425,13 @@ Table~\ref{tab:homophily_ratios} reports the empirical homophily ratio $h_r$ for
 \end{tabular*}
 \end{table}
 
-\subsection{Interpretation and Practical Implications}
+\subsection{Interpretation}
 
-\textbf{High-homophily settings (YelpChi):} On YelpChi's R-U-R relation, roughly 91\% of edges connect reviews of the same class. Fraudulent reviews tend to be written by the same coordinated accounts, forming dense, homophilic clusters. In this regime, the endpoint risk product $\sqrt{s_i \cdot s_j}$ deposits strong pheromone trails along fraud-fraud paths while leaving fraud-benign edges untouched. This structural guidance helps message passing focus on real fraud cliques, yielding the $+9.3\%$ Macro-F1 improvement over CARE-GNN.
+\textbf{High Homophily (YelpChi):} Within the shared user connection in YelpChi, 91\% of connections are between reviews of the same class. Since fake reviews are often produced from multiple coordinated accounts posting reviews of similar items, there are dense clusters. Calculating the product of the risk scores at the endpoints of an edge ($\sqrt{s_i \cdot s_j}$) means strong pheromones are applied to edges within fraud-fraud clusters. Edges connected to normal reviews are ignored. This means message passing is efficiently directed to fraudulent groupings, leading to the 9.3\% increase in Macro-F1 over CARE-GNN.
 
-\textbf{Low-homophily settings (Amazon):} On Amazon, homophily plummets to between 5\% and 17\%. Most relation edges link users of different classes (e.g., fraudulent accounts reviewing products that are predominantly reviewed by legitimate shoppers). Because fraud and benign users are intermixed, joint risk updates become noisy: benign nodes connected to fraud rings receive inflated risk estimates, which in turn reinforces unhelpful edges. Trail evaporation prevents runaway errors, but the pheromone landscape cannot offer the same clean structural clues seen on YelpChi. Consequently, the model matches CARE-GNN rather than outperforming it.
+\textbf{Low Homophily (Amazon):} Within Amazon, homophily falls to as low as 5\%. Most edges connect accounts of different classes. This could be fraudulent accounts reviewing popular items, also reviewed by normal customers. As fraudulent and benign accounts are heavily mixed, joint risk calculations become noisy. Benign nodes connected to bad nodes are assigned higher risk scores, meaning edges not within a fraudulent grouping are reinforced. While error accumulation is prevented by evaporation, the pheromone guidance cannot be as clear as in YelpChi. Therefore, the model only matched the performance of CARE-GNN.
 
-\textbf{Practical takeaway:} Pheromone-guided aggregation is most effective on graphs with strong relational homophily. For graphs with mixed or low homophily, future iterations should incorporate relation-specific gating (Section~\ref{sec:future_scope}) to automatically scale down pheromone weighting on noisy relations while keeping it active on informative ones.
+\textbf{Conclusion:} The message passing guided by pheromones performs best in graphs with noticeable relational homophily. In graphs with low or mixed homophily, in future versions relation specific gates should be incorporated, reducing the effect of pheromones on noisy relationships and increasing the contribution of feature attention.
 
 \subsection{Summary of Empirical Findings}
 
