@@ -51,98 +51,62 @@
 \addbibresource{./AuxFiles/ProjectBib.bib}
 
 %% ============================================================
-%% Custom Title Page (RV-style layout adapted for IGDTUW)
+%% Custom Title Page (matching institutional format)
 %% ============================================================
 \renewcommand*{\maketitle}{%
 \begin{titlepage}
 \thispagestyle{empty}
 
-% Border box
-\begin{tikzpicture}[remember picture, overlay]
-    \draw[line width=1.2pt]
-        ($(current page.north west) + (0.75in,-0.75in)$)
-        rectangle
-        ($(current page.south east) + (-0.75in,0.75in)$);
-\end{tikzpicture}
+\vspace*{-0.5cm}
 
-\vspace*{-0.3cm}
-
-% ---- TOP: Logo + Institution name | tagline ----
-\noindent
-\begin{minipage}[t]{0.72\textwidth}
-    \raisebox{-0.7cm}{\includegraphics[width=1.8cm]{Figures/igdtuw_logo.png}}%
-    \hspace{0.35cm}%
-    \begin{minipage}[t]{0.78\textwidth}
-        \vspace{0.05cm}
-        {\small\bfseries Indira Gandhi Delhi Technical University for Women\par}
-        {\scriptsize Kashmere Gate, Delhi -- 110006, India\par}
-    \end{minipage}
-\end{minipage}%
-\hfill
-\begin{minipage}[t]{0.22\textwidth}
-    \raggedleft
-    {\small\itshape Go, change the world\par}
-\end{minipage}
-
+% ---- TOP: Horizontal rule, Title, Horizontal rule ----
+\noindent\rule{\textwidth}{0.8pt}
 \vspace{0.4cm}
-\noindent\rule{\textwidth}{0.6pt}
-\vspace{1.6cm}
-
-% ---- TITLE ----
 \begin{center}
-    {\LARGE\bfseries Pheromone-Guided Graph Neural Networks for Adaptive\\[0.2cm]
-    Fraud Ring Detection in Dynamic Lending Networks\par}
-    \vspace{0.5cm}
-    {\large\itshape A Minor Project Report (B.Tech Minor Project)\par}
+    {\large\itshape Pheromone-Guided Graph Neural Networks for Adaptive Fraud Ring Detection in Dynamic Lending Networks\par}
+\end{center}
+\vspace{0.4cm}
+\noindent\rule{\textwidth}{0.8pt}
+
+\vspace{0.9cm}
+
+% ---- SUB-HEADINGS ----
+\begin{center}
+    {\normalsize\textbf{\textit{MINOR PROJECT REPORT}}\par}
+    \vspace{0.45cm}
+    {\small\textbf{\textit{Submitted in partial fulfillment of the requirements for the award of the degree}}\par}
+    \vspace{0.35cm}
+    {\normalsize\textbf{\textit{Of}}\par}
+    \vspace{0.35cm}
+    {\normalsize\textbf{\textit{BACHELOR OF TECHNOLOGY}}\par}
+    \vspace{0.35cm}
+    {\normalsize\textbf{\textit{In}}\par}
+    \vspace{0.35cm}
+    {\normalsize\textbf{\textit{-Electronics and Communication Engineering with Artificial Intelligence-}}\par}
+    \vspace{0.6cm}
+    {\normalsize\textbf{\textit{By}}\par}
+    \vspace{0.45cm}
+    {\normalsize\textbf{\textit{Poorvi Goel - 08901182023}}\par}
+    \vspace{0.2cm}
+    {\normalsize\textbf{\textit{Saniya Arora - 11501182023}}\par}
+    \vspace{0.2cm}
+    {\normalsize\textbf{\textit{Sanya Saxena - 11801182023}}\par}
+    \vspace{0.6cm}
+    {\normalsize\textbf{\textit{Guided by}}\par}
+    \vspace{0.35cm}
+    {\normalsize\textbf{\textit{Dr. Richa Yadav}}\par}
+    \vspace{0.15cm}
+    {\small\textbf{\textit{Assistant Professor}}\par}
+    \vspace{0.15cm}
+    {\small\textbf{\textit{Electronics and Communication Engineering}}\par}
+    \vspace{0.6cm}
+    \includegraphics[width=2.5cm]{Figures/igdtuw_logo.png}\par
+    \vspace{0.55cm}
+    {\small\textbf{\textit{INDIRA GANDHI DELHI TECHNICAL UNIVERSITY FOR WOMEN}}\par}
+    \vspace{0.15cm}
+    {\small\textbf{\textit{NEW DELHI -- 110006}}\par}
     \vspace{0.65cm}
-    {\large\bfseries Submitted by,\par}
-    \vspace{0.5cm}
-\end{center}
-
-% ---- STUDENTS (name left, enrollment right) ----
-\begin{center}
-\begin{tabular*}{0.80\textwidth}{@{\extracolsep{\fill}} l r}
-    POORVI GOEL   & 08901182023 \\[0.3cm]
-    SANIYA ARORA  & 11501182023 \\[0.3cm]
-    SANYA SAXENA  & 11801182023 \\
-\end{tabular*}
-\end{center}
-
-\vspace{1.2cm}
-
-% ---- GUIDE ----
-\begin{center}
-    {\large\bfseries Under the guidance of\par}
-\end{center}
-\vspace{0.5cm}
-\noindent
-\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}} l r}
-    \begin{tabular}[t]{@{}l@{}}
-        \textbf{Dr. Richa Yadav}\\[0.15cm]
-        Assistant Professor\\[0.1cm]
-        Dept.\ of ECE\\
-        IGDTUW, Delhi
-    \end{tabular}
-    &
-    \begin{tabular}[t]{@{}l@{}}
-        \textbf{Dr. Ashwni Kumar}\\[0.15cm]
-        Professor\\[0.1cm]
-        Dept.\ of ECE\\
-        IGDTUW, Delhi
-    \end{tabular}
-\end{tabular*}
-
-\vfill
-
-% ---- BOTTOM: Fulfillment text ----
-\begin{center}
-    {\normalsize\bfseries In partial fulfillment of the requirements for the degree of\\[0.25cm]
-    Bachelor of Technology in\par}
-    \vspace{0.4cm}
-    {\Large\bfseries Electronics and Communication Engineering\\[0.1cm]
-    (Artificial Intelligence)\par}
-    \vspace{0.4cm}
-    {\large\bfseries 2023 -- 2027\par}
+    {\normalsize\textbf{\textit{August 2026 - December 2026}}\par}
 \end{center}
 
 \thispagestyle{empty}
@@ -154,11 +118,9 @@
 	\maketitle
 
 	\begin{spacing}{1.4}
-		% 1. Certificate (Guide & HoD, Principal removed per CR Nishtha)
-		\input{./CoverPages/Certificate}
+		% Certificate removed as requested
 
-		\newpage
-		% 2. Candidates' Declaration
+		% 1. Candidates' Declaration
 		\input{./CoverPages/Declaration}
 
 		\newpage

@@ -36,11 +36,7 @@ Graph Neural Networks (GNN) \cite{kipf2017semi, velivckovic2018graph, hamilton20
 \subsection{Adversarial Graph Camouflage}
 As lending platforms have incorporated graph based detection methods, fraudsters have adapted their strategies to evade detection and engage in adversarial graph camouflage. They can camouflage themselves on lending graphs in two ways. Firstly, they can mimic benign patterns (feature camouflage) by making small payments, purchasing inexpensive items, and having an overall similar pattern to benign applicants. Secondly, they can make payments to known reputable users in the network (topological camouflage). This may include payments to utility providers or trusted merchants.
 
-Vanilla GCNs cannot detect this adversarial graph camouflage as they average node embeddings without considering whether edges are adversarial. GAT networks attempt to overcome this problem by weighting edges according to similarity of node features:
-\begin{equation}
-    \alpha_{ij} = \frac{\exp\left(\text{LeakyReLU}\left(\mathbf{a}^\top [\mathbf{W} \mathbf{h}_i \parallel \mathbf{W} \mathbf{h}_j]\right)\right)}{\sum_{k \in \mathcal{N}_i} \exp\left(\text{LeakyReLU}\left(\mathbf{a}^\top [\mathbf{W} \mathbf{h}_i \parallel \mathbf{W} \mathbf{h}_k]\right)\right)}
-\end{equation}
-However, this allows the adversarial nodes to be camouflaged. As the adversarial node mimics the benign features well, they will have a high similarity between their features and that of benign nodes. Therefore, $\alpha_{ij}$ will be large for these edges and benign information will be pulled into the adversarial representation. After 2-3 convolutions the anomalous information has been completely diluted. The classifier will therefore classify the account as benign.
+Vanilla GCNs cannot detect this adversarial graph camouflage as they average node embeddings without considering whether edges are adversarial. GAT networks attempt to overcome this problem by weighting edges according to similarity of node features using self-attention coefficients $\alpha_{ij} = \frac{\exp(\text{LeakyReLU}(\mathbf{a}^\top [\mathbf{W} \mathbf{h}_i \parallel \mathbf{W} \mathbf{h}_j]))}{\sum_{k \in \mathcal{N}_i} \exp(\text{LeakyReLU}(\mathbf{a}^\top [\mathbf{W} \mathbf{h}_i \parallel \mathbf{W} \mathbf{h}_k]))}$. However, this allows the adversarial nodes to be camouflaged. As the adversarial node mimics the benign features well, they will have a high similarity between their features and that of benign nodes. Therefore, $\alpha_{ij}$ will be large for these edges and benign information will be pulled into the adversarial representation. After 2-3 convolutions the anomalous information has been completely diluted. The classifier will therefore classify the account as benign.
 
 \subsection{No Memory Across Epochs}
 The methods proposed in recent works \cite{dou2020enhancing, liu2021pick, tang2021rethinking}, namely CARE-GNN, PC-GNN and BWGNN, aim to mitigate this issue through the design of edge pruning mechanisms based on reinforcement learning strategies and/or wavelet band-pass filters. However, all of these methods suffer from a lack of memory. At each epoch, the attention weights and the decision to prune edges are made solely based on the current node states. Thus, there is no memory in the model of which paths have repeatedly caused defaults in previous epochs.
@@ -55,11 +51,7 @@ This approach has been applied to create long term memory in the form of continu
 \section[Problem Statement]{\textbf{Problem Statement}}
 \label{sec:problem_statement}
 
-We frame the financial network as a multi-relational attributed graph:
-\begin{equation}
-    \mathcal{G} = (\mathcal{V}, \mathcal{E}, \mathcal{R}, \mathcal{X})
-\end{equation}
-where $\mathcal{V} = \{v_1, \dots, v_N\}$ is the set of $N$ applicants or accounts, $\mathcal{E}$ represents directed edges, $\mathcal{R} = \{r_1, \dots, r_M\}$ covers $M$ relation types (such as shared IMEI numbers, identical phone contacts, or co-borrower links), and $\mathcal{X} \in \mathbb{R}^{N \times D}$ contains the $D$-dimensional feature vectors.
+We frame the financial network as a multi-relational attributed graph $\mathcal{G} = (\mathcal{V}, \mathcal{E}, \mathcal{R}, \mathcal{X})$, where $\mathcal{V} = \{v_1, \dots, v_N\}$ is the set of $N$ applicants or accounts, $\mathcal{E}$ represents directed edges, $\mathcal{R} = \{r_1, \dots, r_M\}$ covers $M$ relation types (such as shared IMEI numbers, identical phone contacts, or co-borrower links), and $\mathcal{X} \in \mathbb{R}^{N \times D}$ contains the $D$-dimensional feature vectors.
 
 Each node carries a ground-truth tag $y_i \in \{0, 1\}$, where 1 marks confirmed default or fraud, and 0 marks a legitimate borrower. Working with a partially labeled training split $\mathcal{V}_{\text{train}}$, the goal is learning a predictor $f: (\mathcal{G}, \mathcal{X}) \rightarrow \hat{\mathcal{Y}} \in [0, 1]^N$ estimating the fraud likelihood $\hat{p}_i = P(y_i = 1 \mid \mathcal{G}, \mathcal{X})$ for unseen applicants, while handling three specific hurdles:
 \begin{itemize}
